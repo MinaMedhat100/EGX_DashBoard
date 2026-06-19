@@ -54,6 +54,13 @@ npm run setup               # installs python + backend + frontend deps, generat
 
 ## Run (all three services)
 
+**Windows — easiest:** double-click **`start-dashboard.bat`**. It installs deps on first run,
+generates the data file if missing, frees ports 8001/3001/5173 from any previous run, starts all
+three services, and opens your browser. Keep the window open; press Ctrl+C to stop everything.
+(Set `EGX_NO_BROWSER=1` to skip the auto-open.)
+
+**Or from a terminal:**
+
 ```bash
 npm run dev
 ```
