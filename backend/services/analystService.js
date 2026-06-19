@@ -64,12 +64,21 @@ function extractJson(text) {
 }
 
 // ── portfolio analysis ───────────────────────────────────────────────────────
+function positionPhase(p) {
+  if (p.t2_hit) return 'runner_post_t2';
+  if (p.t1_hit) return 'runner_post_t1';
+  return 'initial';
+}
+
 function portfolioPrompt(positions, strategy) {
   const slim = positions.map((p) => ({
     ticker: p.ticker, avg_cost: p.avg_cost, shares: p.shares, live_price: p.live_price,
     stop_loss: p.stop_loss, t1_price: p.t1_price, t2_price: p.t2_price,
     position_label: p.position_label, is_liquid: p.is_liquid, status_key: p.status_key,
     unrealized_pnl: p.unrealized_pnl, unrealized_pct: p.unrealized_pct,
+    phase: positionPhase(p),
+    t1_hit: !!p.t1_hit, t2_hit: !!p.t2_hit, stop_raised: !!p.stop_raised,
+    t1_fill_price: p.t1_fill_price ?? null, t2_fill_price: p.t2_fill_price ?? null,
     live: p.indicators || {
       price: p.live_price, adx: p.adx, plus_di: p.plus_di, minus_di: p.minus_di,
       rsi: p.rsi, macd_histogram: p.macd_histogram, ema20: p.ema20, ema50: p.ema50,
@@ -100,7 +109,19 @@ function portfolioPrompt(positions, strategy) {
     'suggested_t1 near the nearest resistance or BB upper; suggested_t2 the next resistance.',
     'Numbers in EGP rounded to 2 decimals. For illiquid / no-live positions (EGX30ETF, BAL, CCB),',
     'base the call on context (e.g. exit deadlines) and you may leave suggested_* as their current',
-    'stop/t1/t2. Output JSON only.',
+    'stop/t1/t2.',
+    '',
+    'RUNNER MANAGEMENT — when phase is runner_post_t1 (T1 already filled) or runner_post_t2:',
+    '- This is a RUNNER: part of the position was already sold at the fill price shown. Treat',
+    '  remaining shares as profit-protected. Per strategy, the stop should be at/above break-even',
+    '  (avg_cost); if stop_raised is false, your action_line should tell the user to raise it.',
+    '- Hold the runner toward T2 (or trail above T1) while the trend holds (ADX strong, +DI>-DI).',
+    '- On a PULLBACK: only recommend ADD if it is "scale in on strength" (trend intact, pullback to',
+    '  EMA20/support with RSI cooling, not a breakdown) AND adding does not violate "never add to a',
+    '  losing position"; otherwise HOLD. If the structure has shifted up, you may raise suggested_t2.',
+    '- Set recommendation accordingly (HOLD / ADD / TRIM / EXIT) and reference the T1 fill explicitly',
+    '  in the thesis.',
+    'Output JSON only.',
   ].join('\n');
 }
 

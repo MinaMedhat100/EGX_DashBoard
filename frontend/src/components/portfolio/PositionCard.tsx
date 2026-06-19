@@ -71,6 +71,22 @@ export function PositionCard({
               TV: {p.tv_signal}
             </span>
           )}
+          {p.t1_hit && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-status-green/15 text-status-green border border-status-green/40"
+              title={p.t1_fill_price ? `T1 filled @ ${p.t1_fill_price}` : 'T1 filled'}
+            >
+              T1 ✓ FILLED
+            </span>
+          )}
+          {p.t2_hit && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-status-green/15 text-status-green border border-status-green/40"
+              title={p.t2_fill_price ? `T2 filled @ ${p.t2_fill_price}` : 'T2 filled'}
+            >
+              T2 ✓ FILLED
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
           {chg != null ? <PriceChange value={chg} /> : <span className="text-txt-secondary text-xs">no live</span>}

@@ -44,6 +44,11 @@ function makeNewPosition(order, date) {
     stop_loss: Number(order.stop_loss) || 0,
     stop_raised: false,
     t1_hit: false,
+    t2_hit: false,
+    t1_fill_price: null,
+    t1_fill_date: null,
+    t2_fill_price: null,
+    t2_fill_date: null,
     t1_price: Number(order.t1_price) || 0,
     t2_price: Number(order.t2_price) || 0,
     position_label: `${shares}sh — entered ${date} @ ${price}`,
@@ -132,9 +137,21 @@ export function applyOrder(data, order) {
   pos.shares -= qty;
 
   if (type === 'SELL') {
-    if (order.target === 'T2') pos.t2_hit = true;
-    else {
+    if (order.target === 'T2') {
+      pos.t2_hit = true;
+      pos.t2_fill_price = price;
+      pos.t2_fill_date = date;
+    } else {
       pos.t1_hit = true;
+      pos.t1_fill_price = price;
+      pos.t1_fill_date = date;
+    }
+    // Raise stop to break-even (avg cost) when requested (default-on checkbox in the modal).
+    if (order.raise_stop_be && pos.shares > 0 && pos.avg_cost > 0) {
+      pos.stop_loss = pos.avg_cost;
+      pos.stop_raised = true;
+      toasts.push(`Stop raised to break-even ${pos.avg_cost}`);
+    } else if (order.target !== 'T2') {
       toasts.push(`T1 filled — consider raising stop to break-even ${pos.avg_cost}`);
     }
   }
@@ -168,7 +185,12 @@ export function applyOrder(data, order) {
     data.positions.splice(idx, 1);
     toasts.push(`${ticker} fully exited (${realized >= 0 ? '+' : ''}${realized} EGP realized)`);
   } else {
-    if (isStop) pos.position_label = `${pos.shares}sh runner (${qty}sh stopped@${price})`;
+    if (isStop) {
+      pos.position_label = `${pos.shares}sh runner (${qty}sh stopped@${price})`;
+    } else {
+      const tgt = order.target === 'T2' ? 'T2' : 'T1';
+      pos.position_label = `${pos.shares}sh runner — ${tgt} filled ${qty}@${price}`;
+    }
     recompute(pos);
     toasts.push(`${ticker}: ${qty}sh ${isStop ? 'stopped' : 'sold'}@${price} (${realized >= 0 ? '+' : ''}${realized} EGP), ${pos.shares}sh remain`);
   }

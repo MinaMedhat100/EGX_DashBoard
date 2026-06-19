@@ -28,6 +28,11 @@ export interface Position {
   stop_loss: number;
   stop_raised: boolean;
   t1_hit: boolean;
+  t2_hit?: boolean;
+  t1_fill_price?: number | null;
+  t1_fill_date?: string | null;
+  t2_fill_price?: number | null;
+  t2_fill_date?: string | null;
   t1_price: number;
   t2_price: number;
   position_label: string;
@@ -121,6 +126,37 @@ export interface MarketOverview {
   top_losers: { ticker: string; price: number; change_pct: number }[];
   most_active: { ticker: string; price: number; change_pct: number }[];
   total_analyzed?: number;
+}
+
+export interface ScanParamsDto {
+  min_adx: number;
+  min_di_gap: number;
+  rsi_min: number;
+  rsi_max: number;
+}
+
+export interface ScanRunSummary {
+  id: string;
+  timestamp: string;
+  params: ScanParamsDto;
+  model: string;
+  count: number;
+  scanned: number;
+  passed: number;
+  ai_fallback: boolean;
+  market_direction: string | null;
+}
+
+export interface ScanRun {
+  id: string;
+  timestamp: string;
+  params: ScanParamsDto;
+  model: string;
+  opportunities: Opportunity[];
+  market: MarketOverview | null;
+  ai_fallback: boolean;
+  scanned: number;
+  passed: number;
 }
 
 export interface NewsItem {

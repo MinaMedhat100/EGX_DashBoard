@@ -4,6 +4,8 @@ import type {
   Opportunity,
   MarketOverview,
   NewsItem,
+  ScanRun,
+  ScanRunSummary,
 } from '../types/portfolio';
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
@@ -57,6 +59,10 @@ export const api = {
     }>('/scan-opportunities', { method: 'POST', body: JSON.stringify(params) }),
 
   marketOverview: () => req<MarketOverview>('/market-overview'),
+
+  scanHistory: () => req<{ runs: ScanRunSummary[] }>('/scan-history'),
+  scanRun: (id: string) => req<ScanRun>(`/scan-history/${encodeURIComponent(id)}`),
+  clearScanHistory: () => req<{ ok: boolean }>('/scan-history', { method: 'DELETE' }),
 
   news: (ticker: string) =>
     req<{ ticker: string; items: NewsItem[]; count: number }>(

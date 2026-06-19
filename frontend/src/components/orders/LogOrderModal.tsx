@@ -45,6 +45,7 @@ export function LogOrderModal({
   const [date, setDate] = useState(today());
   const [notes, setNotes] = useState('');
   const [target, setTarget] = useState<'T1' | 'T2'>('T1');
+  const [raiseBe, setRaiseBe] = useState(true);
   const [stopLoss, setStopLoss] = useState('');
   const [t1, setT1] = useState('');
   const [t2, setT2] = useState('');
@@ -62,6 +63,7 @@ export function LogOrderModal({
       setDate(today());
       setNotes('');
       setTarget('T1');
+      setRaiseBe(true);
       setStopLoss('');
       setT1('');
       setT2('');
@@ -84,7 +86,10 @@ export function LogOrderModal({
         date,
         notes,
       };
-      if (type === 'SELL') payload.target = target;
+      if (type === 'SELL') {
+        payload.target = target;
+        payload.raise_stop_be = raiseBe;
+      }
       if (type === 'STOP_OUT' && fifoCost) payload.fifo_cost = Number(fifoCost);
       if (type === 'BUY_NEW') {
         payload.stop_loss = Number(stopLoss) || 0;
@@ -145,6 +150,16 @@ export function LogOrderModal({
               ))}
             </div>
           </Field>
+        )}
+
+        {type === 'SELL' && (
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input type="checkbox" className="accent-accent-purple w-4 h-4" checked={raiseBe} onChange={(e) => setRaiseBe(e.target.checked)} />
+            <span>
+              Raise stop to break-even{held ? ` (${held.avg_cost})` : ' (avg cost)'}
+              <span className="text-txt-secondary"> — recommended after T1</span>
+            </span>
+          </label>
         )}
 
         {type === 'STOP_OUT' && (

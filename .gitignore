@@ -24,4 +24,5 @@ STRATEGY.md
 WORKFLOW.md
 backend/data/portfolio_data.json
 backend/data/last_refresh.json
+backend/data/scan_history.json
 backend/data/*.backup.json

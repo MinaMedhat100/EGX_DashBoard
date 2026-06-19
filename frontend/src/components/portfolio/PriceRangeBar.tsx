@@ -7,6 +7,7 @@ interface Marker {
   value: number;
   color: string;
   emphasize?: boolean;
+  hit?: boolean;
 }
 
 export function PriceRangeBar({ p }: { p: Position }) {
@@ -33,8 +34,8 @@ export function PriceRangeBar({ p }: { p: Position }) {
     stop > 0 && { key: 'stop', label: 'STOP', value: stop, color: '#ef4444' },
     avg > 0 && { key: 'avg', label: 'AVG', value: avg, color: '#e2e8f0' },
     { key: 'now', label: 'NOW', value: live, color: '#06b6d4', emphasize: true },
-    t1 > 0 && { key: 't1', label: 'T1', value: t1, color: '#f97316' },
-    t2 > 0 && { key: 't2', label: 'T2', value: t2, color: '#22c55e' },
+    t1 > 0 && { key: 't1', label: p.t1_hit ? 'T1 ✓' : 'T1', value: t1, color: '#f97316', hit: !!p.t1_hit },
+    t2 > 0 && { key: 't2', label: p.t2_hit ? 'T2 ✓' : 'T2', value: t2, color: '#22c55e', hit: !!p.t2_hit },
   ].filter(Boolean) as Marker[];
 
   return (
@@ -62,6 +63,12 @@ export function PriceRangeBar({ p }: { p: Position }) {
               <div
                 className="w-3.5 h-3.5 rounded-full border-2 border-bg-card"
                 style={{ background: m.color, boxShadow: `0 0 10px ${m.color}` }}
+              />
+            ) : m.hit ? (
+              <div
+                className="w-3 h-3 rounded-full border-2 border-bg-card"
+                style={{ background: m.color, boxShadow: `0 0 8px ${m.color}` }}
+                title="filled"
               />
             ) : (
               <div className="w-[2px] h-3.5" style={{ background: m.color }} />

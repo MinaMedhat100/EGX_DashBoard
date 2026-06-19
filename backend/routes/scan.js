@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { load } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
 import { analyzeOpportunities, DEFAULT_MODEL } from '../services/analystService.js';
+import { appendRun, listRuns, getRun, clearRuns } from '../services/scanHistoryStore.js';
 
 const router = Router();
 
@@ -65,16 +66,49 @@ router.post('/scan-opportunities', async (req, res, next) => {
       fallback = true;
     }
 
+    const run = await appendRun({
+      params,
+      model,
+      opportunities,
+      market,
+      ai_fallback: fallback,
+      scanned: scan.scanned_count,
+      passed: scan.passed_count,
+    });
+
     res.json({
       ok: true,
+      run_id: run.id,
       params,
       opportunities,
       market,
       ai_fallback: fallback,
       raw: { scanned: scan.scanned_count, passed: scan.passed_count },
       model,
-      timestamp: new Date().toISOString(),
+      timestamp: run.timestamp,
     });
+  } catch (e) { next(e); }
+});
+
+// ── scan history ──────────────────────────────────────────────────────────────
+router.get('/scan-history', async (_req, res, next) => {
+  try {
+    res.json({ runs: await listRuns() });
+  } catch (e) { next(e); }
+});
+
+router.get('/scan-history/:id', async (req, res, next) => {
+  try {
+    const run = await getRun(req.params.id);
+    if (!run) return res.status(404).json({ ok: false, error: 'run not found' });
+    res.json(run);
+  } catch (e) { next(e); }
+});
+
+router.delete('/scan-history', async (_req, res, next) => {
+  try {
+    await clearRuns();
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 

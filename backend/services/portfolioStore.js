@@ -7,8 +7,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const DATA_FILE = path.join(__dirname, '..', 'data', 'portfolio_data.json');
 export const CACHE_FILE = path.join(__dirname, '..', 'data', 'last_refresh.json');
 
+// Fill in fields added in later versions without disturbing existing data (no regen needed).
+function normalize(data) {
+  for (const p of data.positions || []) {
+    if (p.t2_hit === undefined) p.t2_hit = false;
+    if (p.t1_fill_price === undefined) p.t1_fill_price = null;
+    if (p.t1_fill_date === undefined) p.t1_fill_date = null;
+    if (p.t2_fill_price === undefined) p.t2_fill_price = null;
+    if (p.t2_fill_date === undefined) p.t2_fill_date = null;
+  }
+  return data;
+}
+
 export async function load() {
-  return JSON.parse(await readFile(DATA_FILE, 'utf-8'));
+  return normalize(JSON.parse(await readFile(DATA_FILE, 'utf-8')));
 }
 
 export async function save(data) {
