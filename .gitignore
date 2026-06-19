@@ -1,0 +1,27 @@
+# --- dependencies / build output ---
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+*.log
+.DS_Store
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# --- local tooling / preview config ---
+.claude/
+
+# --- design docs & build specifications (not published) ---
+docs/
+prompt.md
+
+# --- personal trading data (kept OUT of the public repo) ---
+build_portfolio_v3.py
+PORTFOLIO.md
+STRATEGY.md
+WORKFLOW.md
+backend/data/portfolio_data.json
+backend/data/last_refresh.json
+backend/data/*.backup.json

@@ -1,0 +1,17 @@
+{
+  "name": "egx-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Personal EGX swing-trading portfolio dashboard with autonomous TradingView data + headless-Claude AI analysis",
+  "scripts": {
+    "gen": "python scripts/generate_portfolio_json.py",
+    "bridge": "python -m uvicorn mcp_bridge.main:app --port 8001",
+    "backend": "node backend/server.js",
+    "frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently -k -n bridge,backend,frontend -c magenta,cyan,green \"npm:bridge\" \"npm:backend\" \"npm:frontend\"",
+    "setup": "pip install -r mcp_bridge/requirements.txt && npm --prefix backend install && npm --prefix frontend install && npm run gen"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
