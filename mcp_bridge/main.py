@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .tradingview_client import clean_symbol, extract_indicators, tv_session
+from .tradingview_client import clean_symbol, extract_indicators, extract_mtf, tv_session
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_FILE = ROOT / "backend" / "data" / "last_refresh.json"
@@ -113,7 +113,10 @@ async def refresh_prices(body: RefreshBody):
         async with tv_session() as tv:
             for ticker in body.tickers:
                 analysis = await tv.coin_analysis(ticker)
-                out[ticker] = extract_indicators(analysis)
+                ind = extract_indicators(analysis)
+                # multi-timeframe (W/D/4H/1H/15m) for each liquid position
+                ind["mtf"] = extract_mtf(await tv.multi_timeframe(ticker))
+                out[ticker] = ind
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"refresh failed: {exc!r}")
 
@@ -132,13 +135,17 @@ async def refresh_prices(body: RefreshBody):
 @app.post("/scan-opportunities")
 async def scan_opportunities(body: ScanBody):
     exclude = {t.upper() for t in body.exclude_tickers}
+    results: list[dict] = []
+    note: str | None = None
     try:
         async with tv_session() as tv:
             scr = await tv.screener(min_score=55, limit=40)
-            if "error" in scr:
-                raise HTTPException(status_code=503, detail=scr["error"])
-
+            # Don't raise inside the MCP task group (it wraps into ExceptionGroup). The
+            # screener returns empty/error pre-market — degrade to a clean empty result.
             raw = (scr.get("qualified_trades") or []) + (scr.get("watchlist") or [])
+            if scr.get("error") or not raw:
+                note = scr.get("error") or "screener returned no data (market may be pre-open or closed)"
+                raw = []
             seen: set[str] = set()
             candidates = []
             for item in raw:
@@ -150,7 +157,6 @@ async def scan_opportunities(body: ScanBody):
             candidates.sort(key=lambda x: x.get("stock_score", 0), reverse=True)
             candidates = candidates[: body.detail_limit]
 
-            results = []
             for item in candidates:
                 sym = clean_symbol(item["symbol"])
                 ind = extract_indicators(await tv.coin_analysis(sym))
@@ -176,9 +182,13 @@ async def scan_opportunities(body: ScanBody):
                     "suggested": suggest_levels(ind),
                     "passes_filter": passes,
                 })
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
+
+            # multi-timeframe (W/D/4H/1H/15m) for the candidates that passed the filter,
+            # so the AI ranks with weekly confirmation. Bounded to the passed set.
+            for r in results:
+                if r["passes_filter"]:
+                    r["indicators"]["mtf"] = extract_mtf(await tv.multi_timeframe(r["ticker"]))
+    except Exception as exc:  # noqa: BLE001 — genuine connection failure
         raise HTTPException(status_code=503, detail=f"scan failed: {exc!r}")
 
     passed = [r for r in results if r["passes_filter"]]
@@ -188,6 +198,7 @@ async def scan_opportunities(body: ScanBody):
         "all_scanned": results,
         "passed_count": len(passed),
         "scanned_count": len(results),
+        "note": note,
         "timestamp": _now_iso(),
     }
 

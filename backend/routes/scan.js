@@ -56,14 +56,25 @@ router.post('/scan-opportunities', async (req, res, next) => {
     ]);
 
     const candidates = scan.candidates?.length ? scan.candidates : scan.all_scanned;
-    let opportunities;
+    let opportunities = [];
     let fallback = false;
-    try {
-      opportunities = await analyzeOpportunities(candidates, market, exclude, model);
-      if (!opportunities?.length) throw new Error('empty AI result');
-    } catch {
-      opportunities = deterministicRank(scan.candidates);
-      fallback = true;
+    // Skip the AI call entirely when the screener returned nothing (e.g. pre-market).
+    if (candidates && candidates.length) {
+      try {
+        opportunities = await analyzeOpportunities(candidates, market, exclude, model);
+        if (!opportunities?.length) throw new Error('empty AI result');
+      } catch {
+        opportunities = deterministicRank(scan.candidates);
+        fallback = true;
+      }
+    }
+
+    // attach the bridge's multi-timeframe summary to each opportunity (by ticker)
+    const mtfByTicker = new Map(
+      (scan.candidates || []).map((c) => [c.ticker, c.indicators?.mtf ?? null]),
+    );
+    for (const o of opportunities) {
+      if (o && o.ticker && mtfByTicker.has(o.ticker)) o.mtf = mtfByTicker.get(o.ticker);
     }
 
     const run = await appendRun({
@@ -83,6 +94,7 @@ router.post('/scan-opportunities', async (req, res, next) => {
       opportunities,
       market,
       ai_fallback: fallback,
+      note: scan.note ?? null,
       raw: { scanned: scan.scanned_count, passed: scan.passed_count },
       model,
       timestamp: run.timestamp,

@@ -70,6 +70,21 @@ function positionPhase(p) {
   return 'initial';
 }
 
+const r2 = (n) => Math.round(n * 100) / 100;
+
+// R-multiple framing: 1R = entry(avg) - stop. Live P&L and targets expressed in R.
+function riskR(p) {
+  const risk = p.avg_cost - p.stop_loss;
+  if (!risk || risk <= 0 || !p.live_price) return null;
+  return {
+    one_R_egp: r2(risk),
+    live_R: r2((p.live_price - p.avg_cost) / risk),
+    stop_R: r2((p.live_price - p.stop_loss) / risk),
+    t1_R: p.t1_price > 0 ? r2((p.t1_price - p.avg_cost) / risk) : null,
+    t2_R: p.t2_price > 0 ? r2((p.t2_price - p.avg_cost) / risk) : null,
+  };
+}
+
 function portfolioPrompt(positions, strategy) {
   const slim = positions.map((p) => ({
     ticker: p.ticker, avg_cost: p.avg_cost, shares: p.shares, live_price: p.live_price,
@@ -77,6 +92,8 @@ function portfolioPrompt(positions, strategy) {
     position_label: p.position_label, is_liquid: p.is_liquid, status_key: p.status_key,
     unrealized_pnl: p.unrealized_pnl, unrealized_pct: p.unrealized_pct,
     phase: positionPhase(p),
+    risk_R: riskR(p),
+    mtf: p.mtf ?? null,
     t1_hit: !!p.t1_hit, t2_hit: !!p.t2_hit, stop_raised: !!p.stop_raised,
     t1_fill_price: p.t1_fill_price ?? null, t2_fill_price: p.t2_fill_price ?? null,
     live: p.indicators || {
@@ -110,6 +127,15 @@ function portfolioPrompt(positions, strategy) {
     'Numbers in EGP rounded to 2 decimals. For illiquid / no-live positions (EGX30ETF, BAL, CCB),',
     'base the call on context (e.g. exit deadlines) and you may leave suggested_* as their current',
     'stop/t1/t2.',
+    '',
+    'RISK FRAMING — each position includes risk_R: one_R_egp (1R = entry-to-stop, EGP/share),',
+    'live_R (current unrealized in R), stop_R (distance above stop in R), t1_R/t2_R (targets in R).',
+    'Use R-framing in your thesis where it helps (e.g. "up +0.8R, T2 sits at +2.1R, stop is 1R below").',
+    '',
+    'MULTI-TIMEFRAME (mtf) — weekly_bias / daily_bias / 4h / 1h / 15m, wd_aligned, higher_tf_bullish,',
+    'alignment_status, confidence. Per strategy, weekly sets BIAS and the 50%-vs-100% exit needs W/D',
+    'still bullish: if higher_tf_bullish is false, lean toward fuller exits and against new adds even on',
+    'a pullback. Cite the weekly/daily bias in your thesis when it changes the call.',
     '',
     'RUNNER MANAGEMENT — when phase is runner_post_t1 (T1 already filled) or runner_post_t2:',
     '- This is a RUNNER: part of the position was already sold at the fill price shown. Treat',
@@ -161,9 +187,14 @@ function opportunityPrompt(candidates, market, exclude, strategy) {
     '  "adx": number, "plus_di": number, "minus_di": number, "rsi": number, "macd": "bullish|bearish",',
     '  "entry_zone": [lo, hi], "stop": number, "t1": number, "t2": number,',
     '  "t1_pct": number, "t2_pct": number, "rr": number,',
+    '  "weekly_bias": "Bullish|Bearish|Neutral", "wd_aligned": true|false,',
     '  "thesis": "why this is a strong entry, citing indicators", "conviction": 1-5',
     '}]}',
     '',
+    'Each candidate has indicators.mtf (multi-timeframe: weekly_bias, daily_bias, wd_aligned,',
+    'higher_tf_bullish, alignment_status). Per strategy the WEEKLY sets bias — STRONGLY prefer',
+    'candidates with weekly_bias Bullish and wd_aligned true; down-rank or drop ones whose higher',
+    'timeframe is bearish/unaligned even if the daily looks clean. Echo weekly_bias/wd_aligned in output.',
     'Rank by quality (score desc). Prefer ADX strong (>40), +DI clearly > -DI, RSI 40-70 (room to run),',
     'MACD bullish, and R:R to T2 >= 2 where possible. Refine the baseline levels to sensible',
     'structure-based stops/targets. Exclude anything already held. Output JSON only.',

@@ -2,10 +2,12 @@ import { useState } from 'react';
 import type { Position } from '../../types/portfolio';
 import { GlowCard } from '../common/GlowCard';
 import { StatusBadge } from '../common/StatusBadge';
+import { MtfBadge } from '../common/MtfBadge';
 import { PriceChange } from '../common/PriceChange';
 import { PriceRangeBar } from './PriceRangeBar';
 import { AnalysisPanel } from './AnalysisPanel';
 import { STATUS_META, fmtNum, fmtEgp, fmtPct, daysUntil } from '../../lib/format';
+import { positionR, volatilityPct, volatilityLabel, fmtR } from '../../lib/risk';
 
 function dailyPct(s: string | null): number | null {
   if (!s) return null;
@@ -27,6 +29,7 @@ function ExitFramework({ p }: { p: Position }) {
   let rule: string;
   if (p.adx < 40) rule = 'EXIT 100% (no trend)';
   else if ((p.minus_di ?? 0) > (p.plus_di ?? 0)) rule = 'EXIT 100% (trend reversed)';
+  else if (p.mtf && p.mtf.higher_tf_bullish === false) rule = 'EXIT 100% (higher TF W/D turned)';
   else rule = 'EXIT 50% — keep runner';
   return (
     <div className="mt-2 text-[11px] text-txt-secondary">
@@ -87,6 +90,7 @@ export function PositionCard({
               T2 ✓ FILLED
             </span>
           )}
+          <MtfBadge mtf={p.mtf} />
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
           {chg != null ? <PriceChange value={chg} /> : <span className="text-txt-secondary text-xs">no live</span>}
@@ -142,6 +146,27 @@ export function PositionCard({
           ))}
         </div>
       )}
+
+      {p.is_liquid && p.live_price > 0 && (() => {
+        const r = positionR(p.avg_cost, p.stop_loss, p.live_price, p.t1_price, p.t2_price);
+        const vol = volatilityPct(p.bb_upper, p.bb_lower, p.live_price);
+        if (!r && vol == null) return null;
+        return (
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-mono text-txt-secondary">
+            {r ? (
+              <>
+                <span>1R = {fmtNum(r.riskPerShare)} EGP/sh</span>
+                <span className={r.liveR >= 0 ? 'text-status-green' : 'text-status-red'}>live {fmtR(r.liveR)}</span>
+                <span className="text-txt-secondary">stop {fmtR(r.stopR)}</span>
+                {r.t1R != null && <span className="text-status-orange">T1 {fmtR(r.t1R)}</span>}
+              </>
+            ) : (
+              <span className="text-status-green">stop above cost — risk-free runner</span>
+            )}
+            {vol != null && <span className="ml-auto">vol {vol.toFixed(0)}% ({volatilityLabel(vol)})</span>}
+          </div>
+        );
+      })()}
 
       {p.alert?.thndr_action && (
         <div

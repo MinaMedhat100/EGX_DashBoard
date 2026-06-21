@@ -1,6 +1,8 @@
 import type { Opportunity } from '../../types/portfolio';
 import { GlowCard } from '../common/GlowCard';
+import { MtfBadge } from '../common/MtfBadge';
 import { fmtNum, fmtPct } from '../../lib/format';
+import { rMultiple, fmtR } from '../../lib/risk';
 
 function Lvl({ label, value, color }: { label: string; value: string; color: string }) {
   return (
@@ -29,6 +31,7 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
               {o.sector.replace(/_/g, ' ')}
             </span>
           )}
+          <MtfBadge mtf={o.mtf} />
         </div>
         <div className="flex items-center gap-2">
           {o.tv_signal && <span className="text-xs text-accent-cyan">{o.tv_signal}</span>}
@@ -61,6 +64,21 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
         <Lvl label={`T2 (${fmtPct(o.t2_pct)})`} value={fmtNum(o.t2)} color="#22c55e" />
         <Lvl label="Conviction" value={`${o.conviction ?? '—'}/5`} color="#a855f7" />
       </div>
+
+      {(() => {
+        const entry = o.entry_zone?.[1] ?? o.entry_zone?.[0];
+        if (entry == null || o.stop == null) return null;
+        const t1R = o.t1 != null ? rMultiple(entry, o.stop, o.t1) : null;
+        const t2R = o.t2 != null ? rMultiple(entry, o.stop, o.t2) : null;
+        const oneR = entry - o.stop;
+        return (
+          <div className="mt-2 text-[11px] font-mono text-txt-secondary flex flex-wrap gap-x-3 gap-y-0.5">
+            <span>1R = {fmtNum(oneR)} EGP/sh</span>
+            <span className="text-status-orange">T1 {fmtR(t1R)}</span>
+            <span className="text-status-green">T2 {fmtR(t2R)}</span>
+          </div>
+        );
+      })()}
 
       {o.thesis && (
         <p className="mt-3 text-xs text-txt-primary/85 leading-snug border-t border-white/10 pt-2">

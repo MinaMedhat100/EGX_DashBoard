@@ -115,6 +115,11 @@ class TradingView:
     async def trade_plan(self, symbol, timeframe="1D"):
         return await self.call("egx_trade_plan", {"symbol": symbol, "timeframe": timeframe})
 
+    async def multi_timeframe(self, symbol, exchange="EGX"):
+        return await self.call(
+            "multi_timeframe_analysis", {"symbol": symbol, "exchange": exchange}
+        )
+
     async def news(self, symbol=None, category="stocks", limit=10):
         args = {"category": category, "limit": limit}
         if symbol:
@@ -180,4 +185,33 @@ def extract_indicators(a: dict) -> dict:
         "grade": a.get("grade"),
         "stock_score": a.get("stock_score"),
         "trend": struct.get("trend"),
+    }
+
+
+def extract_mtf(a: dict) -> dict | None:
+    """Compact multi-timeframe summary from multi_timeframe_analysis (W/D/4H/1H/15m)."""
+    if not a or "error" in a:
+        return None
+    tfs = a.get("timeframes", {}) or {}
+    align = a.get("alignment", {}) or {}
+    rec = a.get("recommendation", {}) or {}
+
+    def bias(tf):
+        return (tfs.get(tf, {}) or {}).get("bias")
+
+    w, d = bias("1W"), bias("1D")
+    return {
+        "weekly_bias": w,
+        "daily_bias": d,
+        "bias_4h": bias("4h"),
+        "bias_1h": bias("1h"),
+        "bias_15m": bias("15m"),
+        # both higher TFs clearly up
+        "wd_aligned": w == "Bullish" and d == "Bullish",
+        # the condition the 50%/100% exit rule needs: "W/D still bullish"
+        "higher_tf_bullish": w == "Bullish" and d != "Bearish",
+        "alignment_status": align.get("status"),
+        "confidence": align.get("confidence"),
+        "net_score": align.get("net_score"),
+        "recommendation": rec.get("action"),
     }

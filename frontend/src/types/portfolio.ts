@@ -1,5 +1,19 @@
 export type StatusKey = 'red' | 'orange_hot' | 'yellow' | 'green' | 'purple';
 
+export interface Mtf {
+  weekly_bias?: string | null;
+  daily_bias?: string | null;
+  bias_4h?: string | null;
+  bias_1h?: string | null;
+  bias_15m?: string | null;
+  wd_aligned?: boolean;
+  higher_tf_bullish?: boolean;
+  alignment_status?: string | null;
+  confidence?: string | null;
+  net_score?: number | null;
+  recommendation?: string | null;
+}
+
 export interface Alert {
   flags: string[];
   thndr_action: string | null;
@@ -57,7 +71,8 @@ export interface Position {
   bb_lower: number | null;
   alert: Alert | null;
   ai: AiAnalysis | null;
-  indicators?: Record<string, number | string | null>;
+  mtf?: Mtf | null;
+  indicators?: Record<string, unknown>;
 }
 
 export interface ActionLogEntry {
@@ -114,6 +129,9 @@ export interface Opportunity {
   rr?: number;
   thesis?: string;
   conviction?: number;
+  weekly_bias?: string;
+  wd_aligned?: boolean;
+  mtf?: Mtf | null;
 }
 
 export interface MarketOverview {

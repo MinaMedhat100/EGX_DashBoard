@@ -33,6 +33,7 @@ export function applyLive(data, live) {
     p.macd_histogram = d.macd_histogram; p.ema20 = d.ema20; p.ema50 = d.ema50;
     p.bb_upper = d.bb_upper; p.bb_lower = d.bb_lower;
     p.tv_signal = d.tv_signal ?? p.tv_signal;
+    p.mtf = d.mtf ?? null; // multi-timeframe summary (W/D/4H/1H/15m)
     p.indicators = d; // full set (incl. support/resistance) for the analyst
 
     p.unrealized_pnl = Math.round((d.price - p.avg_cost) * p.shares * 100) / 100;

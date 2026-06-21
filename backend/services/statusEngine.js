@@ -43,11 +43,14 @@ export function buildAlert(position, live, status, prev) {
   }
 
   // THNDR action text (the one active order to set in Thndr)
+  const htfBullish = live.mtf ? live.mtf.higher_tf_bullish : null;
   let thndr = null;
   if (status === 'red') {
     if (stop > 0 && price < stop) {
       if (adx < 40) thndr = 'EXIT 100% at market (no trend)';
       else if (minus_di > plus_di) thndr = 'EXIT 100% at market (trend reversed)';
+      // ADX>40 + +DI>-DI -> 50% rule, BUT only if higher timeframe still bullish
+      else if (htfBullish === false) thndr = 'EXIT 100% at market — higher TF (W/D) turned';
       else thndr = `EXIT 50% (${half}sh) at market — keep runner`;
     } else {
       thndr = adx != null && adx < 25 ? 'EXIT 100% at market (no trend)' : 'EXIT at market';
@@ -64,10 +67,11 @@ export function buildAlert(position, live, status, prev) {
   return { flags, thndr_action: thndr, severity: status };
 }
 
-// Exit-framework tooltip text for RED positions (per prompt.md constraints).
+// Exit-framework tooltip text for RED positions (per prompt.md constraints + W/D check).
 export function exitFramework(live) {
   if (!live || live.adx == null) return null;
   if (live.adx < 40) return 'EXIT 100% (no trend)';
   if (live.minus_di > live.plus_di) return 'EXIT 100% (trend reversed)';
+  if (live.mtf && live.mtf.higher_tf_bullish === false) return 'EXIT 100% (higher TF W/D turned)';
   return 'EXIT 50% — keep runner';
 }

@@ -113,7 +113,11 @@ export function OpportunitiesPage() {
       )}
 
       {!scan.busy && shownOpps && shownOpps.length === 0 && (
-        <GlowCard className="p-8 text-center text-txt-secondary">No candidates passed the filter. Try loosening ADX / DI gap.</GlowCard>
+        <GlowCard className="p-8 text-center text-txt-secondary">
+          {scan.meta?.note
+            ? `No results — ${scan.meta.note}`
+            : 'No candidates passed the filter. Try loosening ADX / DI gap.'}
+        </GlowCard>
       )}
 
       {!scan.busy && shownOpps && shownOpps.length > 0 && (

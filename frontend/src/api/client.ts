@@ -54,6 +54,7 @@ export const api = {
       opportunities: Opportunity[];
       market: MarketOverview | null;
       ai_fallback: boolean;
+      note: string | null;
       raw: { scanned: number; passed: number };
       model: string;
     }>('/scan-opportunities', { method: 'POST', body: JSON.stringify(params) }),

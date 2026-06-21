@@ -15,7 +15,7 @@ export function useScan() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [opportunities, setOpportunities] = useState<Opportunity[] | null>(null);
   const [market, setMarket] = useState<MarketOverview | null>(null);
-  const [meta, setMeta] = useState<{ scanned: number; passed: number; aiFallback: boolean; model: string } | null>(null);
+  const [meta, setMeta] = useState<{ scanned: number; passed: number; aiFallback: boolean; model: string; note: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const run = useCallback(async (params: ScanParams) => {
@@ -28,7 +28,7 @@ export function useScan() {
       clearTimeout(t);
       setOpportunities(res.opportunities);
       setMarket(res.market);
-      setMeta({ scanned: res.raw.scanned, passed: res.raw.passed, aiFallback: res.ai_fallback, model: res.model });
+      setMeta({ scanned: res.raw.scanned, passed: res.raw.passed, aiFallback: res.ai_fallback, model: res.model, note: res.note ?? null });
     } catch (e) {
       clearTimeout(t);
       setError((e as Error).message);
