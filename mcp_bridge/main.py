@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,12 +20,27 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .tradingview_client import clean_symbol, extract_indicators, extract_mtf, tv_session
+from .tradingview_client import (
+    clean_symbol,
+    extract_indicators,
+    extract_mtf,
+    start_client,
+    stop_client,
+    tv_session,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_FILE = ROOT / "backend" / "data" / "last_refresh.json"
 
-app = FastAPI(title="EGX TradingView MCP Bridge", version="1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await start_client()  # one persistent MCP connection for the app's lifetime
+    yield
+    await stop_client()
+
+
+app = FastAPI(title="EGX TradingView MCP Bridge", version="1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
@@ -33,6 +49,16 @@ app.add_middleware(
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat()
+
+
+async def _fetch_mtf(tv, ticker, attempts: int = 3):
+    """Multi-timeframe is the heaviest call and occasionally fails transiently mid-scan;
+    retry a couple of times before giving up (the data almost always exists)."""
+    for _ in range(attempts):
+        mtf = extract_mtf(await tv.multi_timeframe(ticker))
+        if mtf:
+            return mtf
+    return None
 
 
 # ── request models ───────────────────────────────────────────────────────────
@@ -115,7 +141,7 @@ async def refresh_prices(body: RefreshBody):
                 analysis = await tv.coin_analysis(ticker)
                 ind = extract_indicators(analysis)
                 # multi-timeframe (W/D/4H/1H/15m) for each liquid position
-                ind["mtf"] = extract_mtf(await tv.multi_timeframe(ticker))
+                ind["mtf"] = await _fetch_mtf(tv, ticker)
                 out[ticker] = ind
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"refresh failed: {exc!r}")
@@ -187,7 +213,7 @@ async def scan_opportunities(body: ScanBody):
             # so the AI ranks with weekly confirmation. Bounded to the passed set.
             for r in results:
                 if r["passes_filter"]:
-                    r["indicators"]["mtf"] = extract_mtf(await tv.multi_timeframe(r["ticker"]))
+                    r["indicators"]["mtf"] = await _fetch_mtf(tv, r["ticker"])
     except Exception as exc:  # noqa: BLE001 — genuine connection failure
         raise HTTPException(status_code=503, detail=f"scan failed: {exc!r}")
 

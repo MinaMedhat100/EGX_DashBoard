@@ -58,37 +58,98 @@ def clean_symbol(sym: str) -> str:
     return sym.split(":", 1)[1] if ":" in sym else sym
 
 
-# ── connection ───────────────────────────────────────────────────────────────
+# ── persistent connection (one warm MCP connection, owned by a single task) ──
+# Spawning a fresh uvx process per request gets rate-limited/blocked by TradingView
+# (empty bodies — the market-wide screener fails first). One long-lived connection,
+# owned entirely by a single task, avoids that and sidesteps anyio cross-task teardown.
+class _Manager:
+    def __init__(self):
+        self._queue: asyncio.Queue | None = None
+        self._task = None
+        self.tools: list[str] = []
+        self.connected = False
+
+    async def start(self):
+        if self._task is not None:
+            return
+        self._queue = asyncio.Queue()
+        self._task = asyncio.create_task(self._run())
+
+    async def stop(self):
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        self._task = None
+
+    async def _run(self):
+        while True:
+            try:
+                params = StdioServerParameters(command=TV_MCP_COMMAND, args=TV_MCP_ARGS)
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        try:
+                            resp = await session.list_tools()
+                            self.tools = [t.name for t in resp.tools]
+                        except Exception:  # noqa: BLE001
+                            self.tools = []
+                        self.connected = True
+                        while True:
+                            name, args, fut = await self._queue.get()
+                            if fut.done():
+                                continue
+                            try:
+                                res = await asyncio.wait_for(
+                                    session.call_tool(name, args), timeout=CALL_TIMEOUT
+                                )
+                                fut.set_result(_parse_result(res))
+                            except asyncio.TimeoutError:
+                                fut.set_result({"error": f"{name} timed out after {CALL_TIMEOUT}s"})
+                            except Exception as exc:  # noqa: BLE001
+                                fut.set_result({"error": f"{name} failed: {exc!r}"})
+                                raise  # connection likely broken -> reconnect
+            except asyncio.CancelledError:
+                break
+            except Exception:  # noqa: BLE001
+                self.connected = False
+                await asyncio.sleep(2)  # brief pause, then reconnect
+
+    async def call(self, name: str, args: dict) -> dict:
+        if self._queue is None:
+            return {"error": "MCP client not started"}
+        fut = asyncio.get_event_loop().create_future()
+        await self._queue.put((name, args, fut))
+        return await fut
+
+
+_manager = _Manager()
+
+
+async def start_client():
+    await _manager.start()
+
+
+async def stop_client():
+    await _manager.stop()
+
+
 @asynccontextmanager
 async def tv_session():
-    """Open a connected MCP session to the TradingView server for the duration of a block."""
-    params = StdioServerParameters(command=TV_MCP_COMMAND, args=TV_MCP_ARGS)
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            yield TradingView(session)
+    """Backwards-compatible: yields the shared persistent client (no per-call spawn)."""
+    yield tv
 
 
 class TradingView:
-    """Thin typed wrapper over the MCP tool calls we use."""
-
-    def __init__(self, session: ClientSession):
-        self.session = session
+    """Facade over the persistent manager (same method surface as before)."""
 
     async def call(self, name: str, args: dict) -> dict:
-        try:
-            result = await asyncio.wait_for(
-                self.session.call_tool(name, args), timeout=CALL_TIMEOUT
-            )
-        except asyncio.TimeoutError:
-            return {"error": f"{name} timed out after {CALL_TIMEOUT}s"}
-        except Exception as exc:  # noqa: BLE001 - surface any MCP failure to the caller
-            return {"error": f"{name} failed: {exc!r}"}
-        return _parse_result(result)
+        return await _manager.call(name, args)
 
     async def list_tools(self) -> list[str]:
-        resp = await self.session.list_tools()
-        return [t.name for t in resp.tools]
+        return list(_manager.tools)
 
     # high-level tool methods --------------------------------------------------
     async def coin_analysis(self, symbol, exchange="EGX", timeframe="1D"):
@@ -125,6 +186,10 @@ class TradingView:
         if symbol:
             args["symbol"] = symbol
         return await self.call("financial_news", args)
+
+
+# shared persistent client singleton (yielded by tv_session)
+tv = TradingView()
 
 
 # ── indicator extraction (from a coin_analysis response) ─────────────────────

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.1
+
+**Fix: scans returning empty / no market data (intermittent).**
+Root cause: the bridge spawned a fresh `uvx` MCP process per request, and TradingView
+rate-limits/blocks fresh connections (empty bodies — the market-wide screener fails first),
+so repeated scans/refreshes would start coming back empty. The bridge now holds **one
+persistent warm MCP connection** (an owner-task that owns a single long-lived stdio session),
+which matches the working pattern and avoids the throttling. Verified: `/market-overview`
+returns 237 analyzed and scans return real candidates again.
+
+Also:
+- Multi-timeframe now retries on transient failure, so it reliably attaches to every scan pick
+  (previously some picks silently got `mtf=null`).
+- The AI no longer invents a `weekly_bias` when multi-timeframe data is genuinely missing —
+  it reports "Unknown" instead of guessing "Neutral".
+
 ## 1.2.0
 
 **Multi-timeframe analysis** (W/D/4H/1H/15m via `multi_timeframe_analysis`)
