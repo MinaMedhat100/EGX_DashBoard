@@ -36,7 +36,7 @@ export function LogOrderModal({
   onClose: () => void;
   initialTicker: string;
   positions: Position[];
-  onApplied: (portfolio: PortfolioData, toast: string) => void;
+  onApplied: (portfolio: PortfolioData, ticker: string, type: OrderType, toast: string) => void;
 }) {
   const [type, setType] = useState<OrderType>('STOP_OUT');
   const [ticker, setTicker] = useState(initialTicker);
@@ -46,9 +46,6 @@ export function LogOrderModal({
   const [notes, setNotes] = useState('');
   const [target, setTarget] = useState<'T1' | 'T2'>('T1');
   const [raiseBe, setRaiseBe] = useState(true);
-  const [stopLoss, setStopLoss] = useState('');
-  const [t1, setT1] = useState('');
-  const [t2, setT2] = useState('');
   const [fifoCost, setFifoCost] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +61,6 @@ export function LogOrderModal({
       setNotes('');
       setTarget('T1');
       setRaiseBe(true);
-      setStopLoss('');
-      setT1('');
-      setT2('');
       setFifoCost('');
       setError(null);
     }
@@ -91,13 +85,8 @@ export function LogOrderModal({
         payload.raise_stop_be = raiseBe;
       }
       if (type === 'STOP_OUT' && fifoCost) payload.fifo_cost = Number(fifoCost);
-      if (type === 'BUY_NEW') {
-        payload.stop_loss = Number(stopLoss) || 0;
-        payload.t1_price = Number(t1) || 0;
-        payload.t2_price = Number(t2) || 0;
-      }
       const res = await api.logOrder(payload);
-      onApplied(res.portfolio, res.toast || 'Portfolio updated');
+      onApplied(res.portfolio, ticker.toUpperCase(), type, res.toast || 'Portfolio updated');
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -169,16 +158,8 @@ export function LogOrderModal({
         )}
 
         {type === 'BUY_NEW' && (
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Stop">
-              <input type="number" step="0.01" className={input} value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} />
-            </Field>
-            <Field label="T1">
-              <input type="number" step="0.01" className={input} value={t1} onChange={(e) => setT1(e.target.value)} />
-            </Field>
-            <Field label="T2">
-              <input type="number" step="0.01" className={input} value={t2} onChange={(e) => setT2(e.target.value)} />
-            </Field>
+          <div className="text-[11px] text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/30 rounded-lg px-3 py-2">
+            🧠 AI will set the stop &amp; targets from live indicators right after you log this.
           </div>
         )}
 
