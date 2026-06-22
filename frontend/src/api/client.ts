@@ -6,6 +6,7 @@ import type {
   NewsItem,
   ScanRun,
   ScanRunSummary,
+  RefreshAiResult,
 } from '../types/portfolio';
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
@@ -75,4 +76,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  refreshAi: (ticker: string, model?: string) =>
+    req<RefreshAiResult>(
+      `/positions/${encodeURIComponent(ticker)}/refresh-ai`,
+      { method: 'POST', body: JSON.stringify({ model }) },
+    ),
+
+  applyLevels: (ticker: string, levels: { stop: number; t1: number; t2: number }) =>
+    req<{ ok: boolean; position: Position }>(
+      `/positions/${encodeURIComponent(ticker)}/apply-levels`,
+      { method: 'POST', body: JSON.stringify(levels) },
+    ),
 };

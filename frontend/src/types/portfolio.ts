@@ -41,6 +41,7 @@ export interface Position {
   shares: number;
   stop_loss: number;
   stop_raised: boolean;
+  levels_source?: 'pending' | 'ai' | 'manual';
   t1_hit: boolean;
   t2_hit?: boolean;
   t1_fill_price?: number | null;
@@ -73,6 +74,21 @@ export interface Position {
   ai: AiAnalysis | null;
   mtf?: Mtf | null;
   indicators?: Record<string, unknown>;
+}
+
+export interface LevelProposal {
+  stop: number | null;
+  t1: number | null;
+  t2: number | null;
+}
+
+export interface RefreshAiResult {
+  ok: boolean;
+  position: Position;
+  applied: boolean;
+  proposal?: LevelProposal;
+  error?: string;
+  live_error?: string | null;
 }
 
 export interface ActionLogEntry {
