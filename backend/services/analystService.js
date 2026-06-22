@@ -73,7 +73,8 @@ function positionPhase(p) {
 const r2 = (n) => Math.round(n * 100) / 100;
 
 // R-multiple framing: 1R = entry(avg) - stop. Live P&L and targets expressed in R.
-function riskR(p) {
+export function riskR(p) {
+  if (!p.stop_loss || p.stop_loss <= 0) return null;
   const risk = p.avg_cost - p.stop_loss;
   if (!risk || risk <= 0 || !p.live_price) return null;
   return {

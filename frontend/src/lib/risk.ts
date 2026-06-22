@@ -22,6 +22,7 @@ export function positionR(
   t1: number,
   t2: number,
 ): PositionR | null {
+  if (!stop || stop <= 0) return null; // no real stop yet (pending) -> R undefined
   const risk = avg - stop; // initial per-share risk from entry to stop
   if (!risk || risk <= 0) return null; // stop at/above cost -> risk-free, R undefined
   return {
