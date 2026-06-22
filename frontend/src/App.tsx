@@ -10,7 +10,7 @@ import { OpportunitiesPage } from './pages/OpportunitiesPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { GlowCard } from './components/common/GlowCard';
 import { LogOrderModal } from './components/orders/LogOrderModal';
-import type { PortfolioData } from './types/portfolio';
+import type { PortfolioData, LevelProposal, Position } from './types/portfolio';
 
 function LoadingState() {
   return (
@@ -33,6 +33,9 @@ function Shell() {
   const [tab, setTab] = useState<Tab>('portfolio');
   const [health, setHealth] = useState<{ bridge: boolean; model: string } | null>(null);
   const [orderModal, setOrderModal] = useState<{ open: boolean; ticker: string }>({ open: false, ticker: '' });
+  const [aiUpdating, setAiUpdating] = useState<string | null>(null);
+  const [proposals, setProposals] = useState<Record<string, LevelProposal>>({});
+  const [staleTicker, setStaleTicker] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -50,10 +53,45 @@ function Shell() {
 
   const onLogOrder = (ticker: string) => setOrderModal({ open: true, ticker });
 
-  const onOrderApplied = (portfolio: PortfolioData, msg: string) => {
+  const runAiUpdate = async (ticker: string) => {
+    setAiUpdating(ticker);
+    try {
+      const r = await api.refreshAi(ticker);
+      applyPositions([r.position]);
+      if (r.applied) toast(`AI set levels for ${ticker}`, 'success');
+      else if (r.proposal) {
+        setProposals((m) => ({ ...m, [ticker]: r.proposal as LevelProposal }));
+        toast(`${ticker}: AI proposed updated levels — review on the card`, 'success');
+      } else {
+        toast(`${ticker}: AI couldn't set levels${r.error ? ` (${r.error})` : ''}`, 'error');
+      }
+      setStaleTicker(ticker);
+    } catch (e) {
+      toast(`${ticker}: AI refresh failed — ${(e as Error).message}`, 'error');
+    } finally {
+      setAiUpdating(null);
+    }
+  };
+
+  const onOrderApplied = (portfolio: PortfolioData, ticker: string, _type: string, msg: string) => {
     setData(portfolio);
     toast(msg, 'success');
+    if (ticker) runAiUpdate(ticker);
   };
+
+  const onApplyLevels = async (ticker: string, levels: { stop: number; t1: number; t2: number }) => {
+    try {
+      const r = await api.applyLevels(ticker, levels);
+      applyPositions([r.position]);
+      setProposals((m) => { const n = { ...m }; delete n[ticker]; return n; });
+      toast(`${ticker}: levels updated`, 'success');
+    } catch (e) {
+      toast(`${ticker}: ${(e as Error).message}`, 'error');
+    }
+  };
+
+  const onDismissProposal = (ticker: string) =>
+    setProposals((m) => { const n = { ...m }; delete n[ticker]; return n; });
 
   return (
     <div className="flex min-h-screen">
@@ -78,7 +116,18 @@ function Shell() {
             </GlowCard>
           )}
           {data && tab === 'portfolio' && (
-            <PortfolioPage data={data} refreshing={refresh.refreshing} onLogOrder={onLogOrder} />
+            <PortfolioPage
+              data={data}
+              refreshing={refresh.refreshing}
+              onLogOrder={onLogOrder}
+              aiUpdating={aiUpdating}
+              proposals={proposals}
+              onApplyLevels={onApplyLevels}
+              onDismissProposal={onDismissProposal}
+              staleTicker={staleTicker}
+              onRefreshAll={() => { setStaleTicker(null); doRefresh(); }}
+              onDismissStale={() => setStaleTicker(null)}
+            />
           )}
           {data && tab === 'opportunities' && <OpportunitiesPage />}
           {data && tab === 'history' && <HistoryPage data={data} />}
