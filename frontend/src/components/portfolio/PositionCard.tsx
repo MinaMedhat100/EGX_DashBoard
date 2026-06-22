@@ -249,16 +249,16 @@ export function PositionCard({
         </div>
       )}
 
-      {!updating && proposal && (
+      {!updating && proposal && !editing && (
         <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-accent-purple/10 border border-accent-purple/30">
           <div className="text-accent-purple-lt font-medium">Apply AI levels?</div>
           <div className="text-[11px] font-mono text-txt-secondary mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
             <span className={p.stop_raised && proposal.stop != null && proposal.stop < p.stop_loss ? 'text-status-yellow' : ''}>
-              stop {fmtNum(p.stop_loss)} → {proposal.stop ?? '—'}
+              stop {fmtNum(p.stop_loss)} → {proposal.stop != null ? fmtNum(proposal.stop) : '—'}
               {p.stop_raised && proposal.stop != null && proposal.stop < p.stop_loss ? ' ⚠ lowers break-even' : ''}
             </span>
-            <span>T1 {fmtNum(p.t1_price)} → {proposal.t1 ?? '—'}</span>
-            <span>T2 {fmtNum(p.t2_price)} → {proposal.t2 ?? '—'}</span>
+            <span>T1 {fmtNum(p.t1_price)} → {proposal.t1 != null ? fmtNum(proposal.t1) : '—'}</span>
+            <span>T2 {fmtNum(p.t2_price)} → {proposal.t2 != null ? fmtNum(proposal.t2) : '—'}</span>
           </div>
           <div className="flex gap-2 mt-2">
             <button
