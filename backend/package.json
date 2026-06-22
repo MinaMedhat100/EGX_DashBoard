@@ -6,7 +6,8 @@
   "description": "Express backend for the EGX swing-trading dashboard",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test test/**/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -43,6 +43,7 @@ function makeNewPosition(order, date) {
     shares,
     stop_loss: Number(order.stop_loss) || 0,
     stop_raised: false,
+    levels_source: 'pending',
     t1_hit: false,
     t2_hit: false,
     t1_fill_price: null,
