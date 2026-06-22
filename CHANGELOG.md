@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0
+
+**AI sets position levels on Log Trade.**
+- BUY (new position) no longer asks you to type the stop/T1/T2 — you log just shares + price, and
+  the AI derives the stop/targets from live indicators automatically right after.
+- Logging any order auto-runs a fast, **single-ticker** refresh + AI analysis (no full ~2-min
+  portfolio refresh). A nudge offers a full refresh for the rest of the book when convenient.
+- New positions **adopt** the AI's levels; existing positions get an **"Apply AI levels?"** proposal
+  you confirm — so a runner's break-even stop is never silently overwritten (the diff warns in amber
+  if a suggestion would lower a raised stop).
+- If the bridge/AI is unavailable, the position stays "Levels pending" with a manual-set fallback.
+- The app version now shows in the sidebar footer.
+
+New endpoints: `POST /api/positions/:ticker/refresh-ai`, `POST /api/positions/:ticker/apply-levels`.
+
 ## 1.2.1
 
 **Fix: scans returning empty / no market data (intermittent).**

@@ -90,6 +90,7 @@ export function Sidebar({
         <div className="text-[10px] text-txt-secondary leading-snug border-t border-white/10 pt-2">
           Thndr: ONE active order per stock — stop-loss OR limit sell, not both.
         </div>
+        <div className="text-[10px] text-txt-secondary text-right">v{__APP_VERSION__}</div>
       </div>
     </aside>
   );
