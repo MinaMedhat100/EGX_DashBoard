@@ -148,6 +148,7 @@ export interface Opportunity {
   weekly_bias?: string;
   wd_aligned?: boolean;
   mtf?: Mtf | null;
+  passes_filter?: boolean;
 }
 
 export interface MarketOverview {
@@ -179,6 +180,8 @@ export interface ScanRunSummary {
   passed: number;
   ai_fallback: boolean;
   market_direction: string | null;
+  mode?: 'market' | 'watchlist';
+  watchlist_count?: number;
 }
 
 export interface ScanRun {
@@ -191,6 +194,8 @@ export interface ScanRun {
   ai_fallback: boolean;
   scanned: number;
   passed: number;
+  mode?: 'market' | 'watchlist';
+  watchlist_tickers?: string[];
 }
 
 export interface NewsItem {
@@ -199,4 +204,15 @@ export interface NewsItem {
   url: string | null;
   sentiment: string | null;
   source?: string;
+}
+
+export interface ScanResponse {
+  ok: boolean;
+  opportunities: Opportunity[];
+  market: MarketOverview | null;
+  ai_fallback: boolean;
+  note: string | null;
+  raw: { scanned: number; passed: number };
+  model: string;
+  mode?: 'market' | 'watchlist';
 }

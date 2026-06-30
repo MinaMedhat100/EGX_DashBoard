@@ -7,6 +7,8 @@ import type {
   ScanRun,
   ScanRunSummary,
   RefreshAiResult,
+  ScanResponse,
+  ScanParamsDto,
 } from '../types/portfolio';
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
@@ -44,23 +46,21 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ model }) },
     ),
 
-  scan: (params: {
-    min_adx: number;
-    min_di_gap: number;
-    rsi_min: number;
-    rsi_max: number;
-  }) =>
-    req<{
-      ok: boolean;
-      opportunities: Opportunity[];
-      market: MarketOverview | null;
-      ai_fallback: boolean;
-      note: string | null;
-      raw: { scanned: number; passed: number };
-      model: string;
-    }>('/scan-opportunities', { method: 'POST', body: JSON.stringify(params) }),
+  scan: (params: ScanParamsDto) =>
+    req<ScanResponse>('/scan-opportunities', { method: 'POST', body: JSON.stringify(params) }),
 
   marketOverview: () => req<MarketOverview>('/market-overview'),
+
+  getWatchlist: () => req<{ tickers: string[] }>('/watchlist'),
+
+  saveWatchlist: (tickers: string[]) =>
+    req<{ tickers: string[] }>('/watchlist', { method: 'PUT', body: JSON.stringify({ tickers }) }),
+
+  scanWatchlist: (tickers: string[], params: ScanParamsDto) =>
+    req<ScanResponse>('/scan-watchlist', {
+      method: 'POST',
+      body: JSON.stringify({ tickers, ...params }),
+    }),
 
   scanHistory: () => req<{ runs: ScanRunSummary[] }>('/scan-history'),
   scanRun: (id: string) => req<ScanRun>(`/scan-history/${encodeURIComponent(id)}`),
