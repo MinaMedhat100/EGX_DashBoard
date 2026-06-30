@@ -30,7 +30,7 @@ export function ScanControls({
     setParams((p) => ({ ...p, [k]: Number(e.target.value) }));
 
   const btnLabel = !busy
-    ? '🔍 Run Scan'
+    ? '🔍 Scan Market'
     : phase === 'analyzing'
       ? '🧠 AI analyzing…'
       : '🔍 Scanning market…';

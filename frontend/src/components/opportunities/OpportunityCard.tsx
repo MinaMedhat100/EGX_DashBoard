@@ -32,6 +32,14 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
             </span>
           )}
           <MtfBadge mtf={o.mtf} />
+          {o.passes_filter === false && (
+            <span
+              title={`Below momentum filter — ADX ${d1(o.adx)} · +DI ${d1(o.plus_di)} −DI ${d1(o.minus_di)} · RSI ${d1(o.rsi)}`}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-status-red/15 border border-status-red/40 text-status-red font-semibold"
+            >
+              ✗ momentum
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {o.tv_signal && <span className="text-xs text-accent-cyan">{o.tv_signal}</span>}

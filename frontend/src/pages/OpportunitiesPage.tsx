@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useScan, type ScanParams } from '../hooks/useScan';
 import { useMarketOverview } from '../hooks/useMarketOverview';
 import { useScanHistory } from '../hooks/useScanHistory';
+import { useWatchlist } from '../hooks/useWatchlist';
 import { MarketStrip } from '../components/opportunities/MarketStrip';
 import { ScanControls } from '../components/opportunities/ScanControls';
+import { WatchlistEditor } from '../components/opportunities/WatchlistEditor';
 import { OpportunityCard } from '../components/opportunities/OpportunityCard';
 import { GlowCard } from '../components/common/GlowCard';
 
@@ -30,17 +32,25 @@ export function OpportunitiesPage() {
   const market = useMarketOverview();
   const scan = useScan();
   const history = useScanHistory();
+  const watchlist = useWatchlist();
   const [params, setParams] = useState<ScanParams>({ min_adx: 35, min_di_gap: 5, rsi_min: 40, rsi_max: 70 });
 
   useEffect(() => {
     market.load();
     history.refresh();
+    watchlist.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const runScan = async () => {
     await scan.run(params);
     history.setSelected(null); // return to the live result
+    history.refresh();
+  };
+
+  const runWatchlistScan = async (tickers: string[]) => {
+    await scan.runWatchlist(tickers, params);
+    history.setSelected(null);
     history.refresh();
   };
 
@@ -64,7 +74,7 @@ export function OpportunitiesPage() {
             <option value="" className="bg-bg-card">● Live scan result</option>
             {history.list.map((r) => (
               <option key={r.id} value={r.id} className="bg-bg-card">
-                {runLabel(r.timestamp)} · {r.count} picks · ADX&gt;{r.params?.min_adx} RSI {r.params?.rsi_min}-{r.params?.rsi_max} · {r.model}
+                {(r.mode === 'watchlist' ? '🎯 ' : '🔍 ')}{runLabel(r.timestamp)} · {r.count} picks · {r.mode === 'watchlist' ? `${r.watchlist_count} names` : `ADX>${r.params?.min_adx} RSI ${r.params?.rsi_min}-${r.params?.rsi_max}`} · {r.model}
               </option>
             ))}
           </select>
@@ -86,6 +96,14 @@ export function OpportunitiesPage() {
         onRun={runScan}
         busy={scan.busy}
         phase={scan.phase}
+      />
+
+      <WatchlistEditor
+        tickers={watchlist.tickers}
+        saving={watchlist.saving}
+        onSave={watchlist.save}
+        onScan={runWatchlistScan}
+        busy={scan.busy}
       />
 
       {scan.error && <div className="text-status-red text-sm">⚠ {scan.error}</div>}
