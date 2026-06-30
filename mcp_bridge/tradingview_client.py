@@ -187,6 +187,11 @@ class TradingView:
             args["symbol"] = symbol
         return await self.call("financial_news", args)
 
+    async def index_analysis(self, index, timeframe="1D", limit=5):
+        return await self.call(
+            "egx_index_analysis", {"index": index, "timeframe": timeframe, "limit": limit}
+        )
+
 
 # shared persistent client singleton (yielded by tv_session)
 tv = TradingView()

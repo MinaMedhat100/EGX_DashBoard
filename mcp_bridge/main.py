@@ -121,6 +121,44 @@ def suggest_levels(ind: dict) -> dict | None:
     }
 
 
+# ── EGX index tracker ─────────────────────────────────────────────────────────
+# VERIFIED 2026-07-01: the price LEVEL comes from coin_analysis on the *EWI* symbols for 70/100;
+# the constituent internals come from egx_index_analysis on the short names.
+INDEX_MAP = [
+    {"index": "EGX30", "coin_symbol": "EGX30"},
+    {"index": "EGX70", "coin_symbol": "EGX70EWI"},
+    {"index": "EGX100", "coin_symbol": "EGX100EWI"},
+]
+
+
+def _trim_constituent(i: dict) -> dict:
+    return {
+        "symbol": clean_symbol(i.get("symbol", "")),
+        "sector": i.get("sector"),
+        "change_pct": i.get("changePercent"),
+        "rsi": i.get("rsi"),
+        "bb_signal": i.get("bb_signal"),
+    }
+
+
+def _trim_internals(ia: dict) -> dict:
+    stats = ia.get("index_stats", {}) or {}
+    return {
+        "stats": {
+            "avg_change": stats.get("avg_change"),
+            "advancing": stats.get("advancing"),
+            "declining": stats.get("declining"),
+            "unchanged": stats.get("unchanged"),
+            "breadth": stats.get("breadth"),
+            "sentiment": stats.get("sentiment"),
+            "total_constituents": stats.get("total_constituents"),
+        },
+        "sectors": ia.get("sector_breakdown", []) or [],
+        "top_gainers": [_trim_constituent(x) for x in (ia.get("top_gainers") or [])[:5]],
+        "top_losers": [_trim_constituent(x) for x in (ia.get("top_losers") or [])[:5]],
+    }
+
+
 # ── endpoints ────────────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
@@ -337,6 +375,32 @@ async def market_overview():
         "total_analyzed": ov.get("total_analyzed"),
         "timestamp": _now_iso(),
     }
+
+
+@app.get("/index-tracker")
+async def index_tracker():
+    out: list[dict] = []
+    try:
+        async with tv_session() as tv:
+            for m in INDEX_MAP:
+                ind = extract_indicators(await tv.coin_analysis(m["coin_symbol"]))
+                has_level = "error" not in ind
+                ia = await tv.index_analysis(m["index"])
+                internals = _trim_internals(ia) if (ia and "error" not in ia) else {
+                    "stats": {}, "sectors": [], "top_gainers": [], "top_losers": [],
+                }
+                out.append({
+                    "index": m["index"],
+                    "coin_symbol": m["coin_symbol"],
+                    "level": ind.get("price") if has_level else None,
+                    "change_pct": ind.get("daily_change_pct") if has_level else None,
+                    "indicators": ind if has_level else {},
+                    "mtf": await _fetch_mtf(tv, m["coin_symbol"]) if has_level else None,
+                    **internals,
+                })
+    except Exception as exc:  # noqa: BLE001 — genuine connection failure
+        raise HTTPException(status_code=503, detail=f"index-tracker failed: {exc!r}")
+    return {"indices": out, "timestamp": _now_iso()}
 
 
 @app.get("/news/{ticker}")
