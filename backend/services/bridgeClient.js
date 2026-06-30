@@ -23,6 +23,8 @@ export const bridge = {
     call('/refresh-prices', { method: 'POST', body: { tickers }, timeoutMs: 180000 }),
   scan: (params) =>
     call('/scan-opportunities', { method: 'POST', body: params, timeoutMs: 300000 }),
+  scanWatchlist: (params) =>
+    call('/scan-watchlist', { method: 'POST', body: params, timeoutMs: 300000 }),
   marketOverview: () => call('/market-overview', { timeoutMs: 120000 }),
   news: (ticker) => call(`/news/${encodeURIComponent(ticker)}`, { timeoutMs: 30000 }),
 };

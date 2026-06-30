@@ -7,7 +7,7 @@ import { appendRun, listRuns, getRun, clearRuns } from '../services/scanHistoryS
 
 const router = Router();
 
-function deterministicRank(candidates) {
+export function deterministicRank(candidates, cap = 8) {
   return (candidates || [])
     .map((c) => ({
       ticker: c.ticker,
@@ -30,7 +30,7 @@ function deterministicRank(candidates) {
       conviction: 3,
     }))
     .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, 8);
+    .slice(0, cap);
 }
 
 router.post('/scan-opportunities', async (req, res, next) => {
@@ -85,6 +85,7 @@ router.post('/scan-opportunities', async (req, res, next) => {
       ai_fallback: fallback,
       scanned: scan.scanned_count,
       passed: scan.passed_count,
+      mode: 'market',
     });
 
     res.json({
@@ -97,7 +98,66 @@ router.post('/scan-opportunities', async (req, res, next) => {
       note: scan.note ?? null,
       raw: { scanned: scan.scanned_count, passed: scan.passed_count },
       model,
+      mode: 'market',
       timestamp: run.timestamp,
+    });
+  } catch (e) { next(e); }
+});
+
+router.post('/scan-watchlist', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const model = body.model || DEFAULT_MODEL;
+    const tickers = Array.isArray(body.tickers) ? body.tickers : [];
+    if (!tickers.length) return res.status(400).json({ ok: false, error: 'no tickers provided' });
+
+    const params = {
+      tickers,
+      min_adx: body.min_adx ?? 35,
+      min_di_gap: body.min_di_gap ?? 5,
+      rsi_min: body.rsi_min ?? 40,
+      rsi_max: body.rsi_max ?? 70,
+    };
+
+    const [scan, market] = await Promise.all([
+      bridge.scanWatchlist(params),
+      bridge.marketOverview().catch(() => null),
+    ]);
+
+    const candidates = scan.candidates || [];
+    let opportunities = [];
+    let fallback = false;
+    if (candidates.length) {
+      try {
+        opportunities = await analyzeOpportunities(candidates, market, [], model, { mode: 'watchlist' });
+        if (!opportunities?.length) throw new Error('empty AI result');
+      } catch {
+        opportunities = deterministicRank(candidates, candidates.length); // no cap for watchlist
+        fallback = true;
+      }
+    }
+
+    // attach passes_filter + mtf onto each opportunity by ticker
+    const byTicker = new Map(candidates.map((c) => [c.ticker, c]));
+    for (const o of opportunities) {
+      const c = byTicker.get(o.ticker);
+      if (c) {
+        o.passes_filter = c.passes_filter;
+        o.mtf = c.indicators?.mtf ?? null;
+      }
+    }
+
+    const run = await appendRun({
+      params, model, opportunities, market, ai_fallback: fallback,
+      scanned: scan.scanned_count, passed: scan.passed_count,
+      mode: 'watchlist', watchlist_tickers: tickers,
+    });
+
+    res.json({
+      ok: true, run_id: run.id, params, opportunities, market,
+      ai_fallback: fallback, note: scan.note ?? null,
+      raw: { scanned: scan.scanned_count, passed: scan.passed_count },
+      model, mode: 'watchlist', timestamp: run.timestamp,
     });
   } catch (e) { next(e); }
 });

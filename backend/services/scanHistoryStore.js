@@ -31,9 +31,8 @@ export async function appendRun(run) {
 }
 
 // Lightweight summaries for the run-selector (no full opportunity payloads).
-export async function listRuns() {
-  const runs = await readAll();
-  return runs.map((r) => ({
+export function summarizeRuns(runs) {
+  return (runs || []).map((r) => ({
     id: r.id,
     timestamp: r.timestamp,
     params: r.params,
@@ -43,7 +42,13 @@ export async function listRuns() {
     passed: r.passed,
     ai_fallback: r.ai_fallback,
     market_direction: r.market?.direction ?? null,
+    mode: r.mode || 'market',
+    watchlist_count: (r.watchlist_tickers || []).length,
   }));
+}
+
+export async function listRuns() {
+  return summarizeRuns(await readAll());
 }
 
 export async function getRun(id) {
