@@ -75,6 +75,14 @@ class ScanBody(BaseModel):
     detail_limit: int = 12
 
 
+class WatchlistScanBody(BaseModel):
+    tickers: list[str]
+    min_adx: float = 35
+    min_di_gap: float = 5
+    rsi_min: float = 40
+    rsi_max: float = 70
+
+
 # ── deterministic level suggestions (baseline; AI refines later) ─────────────
 def suggest_levels(ind: dict) -> dict | None:
     """A bounded, deterministic baseline for entry/stop/targets. The AI analyst refines
@@ -158,6 +166,36 @@ async def refresh_prices(body: RefreshBody):
     return out
 
 
+async def _analyze_candidate(tv, sym, item, body) -> dict:
+    """coin_analysis -> indicators -> ADX/DI/RSI pass flag for one symbol (no mtf).
+    `item` is the screener row (sector/score/grade/signals) for a market scan, or None
+    for a watchlist scan (those fields then fall back to the coin_analysis values)."""
+    ind = extract_indicators(await tv.coin_analysis(sym))
+    if "error" in ind:
+        return {"ticker": sym, "error": ind["error"]}
+    item = item or {}
+    adx = ind.get("adx") or 0
+    gap = (ind.get("plus_di") or 0) - (ind.get("minus_di") or 0)
+    rsi = ind.get("rsi") or 0
+    passes = (
+        adx > body.min_adx
+        and gap > body.min_di_gap
+        and body.rsi_min <= rsi <= body.rsi_max
+    )
+    return {
+        "ticker": sym,
+        "sector": item.get("sector"),
+        "stock_score": item.get("stock_score", ind.get("stock_score")),
+        "grade": item.get("grade", ind.get("grade")),
+        "trend_state": item.get("trend_state", ind.get("trend_state")),
+        "signals": item.get("signals", []),
+        "di_gap": round(gap, 2),
+        "indicators": ind,
+        "suggested": suggest_levels(ind),
+        "passes_filter": passes,
+    }
+
+
 @app.post("/scan-opportunities")
 async def scan_opportunities(body: ScanBody):
     exclude = {t.upper() for t in body.exclude_tickers}
@@ -185,29 +223,10 @@ async def scan_opportunities(body: ScanBody):
 
             for item in candidates:
                 sym = clean_symbol(item["symbol"])
-                ind = extract_indicators(await tv.coin_analysis(sym))
-                if "error" in ind:
+                cand = await _analyze_candidate(tv, sym, item, body)
+                if "error" in cand:
                     continue
-                adx = ind.get("adx") or 0
-                gap = (ind.get("plus_di") or 0) - (ind.get("minus_di") or 0)
-                rsi = ind.get("rsi") or 0
-                passes = (
-                    adx > body.min_adx
-                    and gap > body.min_di_gap
-                    and body.rsi_min <= rsi <= body.rsi_max
-                )
-                results.append({
-                    "ticker": sym,
-                    "sector": item.get("sector"),
-                    "stock_score": item.get("stock_score"),
-                    "grade": item.get("grade"),
-                    "trend_state": item.get("trend_state"),
-                    "signals": item.get("signals", []),
-                    "di_gap": round(gap, 2),
-                    "indicators": ind,
-                    "suggested": suggest_levels(ind),
-                    "passes_filter": passes,
-                })
+                results.append(cand)
 
             # multi-timeframe (W/D/4H/1H/15m) for the candidates that passed the filter,
             # so the AI ranks with weekly confirmation. Bounded to the passed set.
@@ -224,6 +243,48 @@ async def scan_opportunities(body: ScanBody):
         "all_scanned": results,
         "passed_count": len(passed),
         "scanned_count": len(results),
+        "note": note,
+        "timestamp": _now_iso(),
+    }
+
+
+@app.post("/scan-watchlist")
+async def scan_watchlist(body: WatchlistScanBody):
+    # normalize: clean EGX: prefix, uppercase, dedupe, preserve order
+    seen: set[str] = set()
+    tickers: list[str] = []
+    for t in body.tickers:
+        sym = clean_symbol((t or "").strip()).upper()
+        if sym and sym not in seen:
+            seen.add(sym)
+            tickers.append(sym)
+
+    results: list[dict] = []
+    unresolved: list[str] = []
+    try:
+        async with tv_session() as tv:
+            for sym in tickers:
+                cand = await _analyze_candidate(tv, sym, None, body)
+                if "error" in cand:
+                    unresolved.append(sym)
+                    results.append({"ticker": sym, "error": cand["error"], "passes_filter": False})
+                    continue
+                results.append(cand)
+            # multi-timeframe for every resolved ticker (the list is small)
+            for r in results:
+                if "error" not in r:
+                    r["indicators"]["mtf"] = await _fetch_mtf(tv, r["ticker"])
+    except Exception as exc:  # noqa: BLE001 — genuine connection failure
+        raise HTTPException(status_code=503, detail=f"watchlist scan failed: {exc!r}")
+
+    resolved = [r for r in results if "error" not in r]
+    note = f"no live data for: {', '.join(unresolved)}" if unresolved else None
+    return {
+        "params": body.model_dump(),
+        "candidates": resolved,        # ALL resolved (each carries passes_filter)
+        "all_scanned": results,        # incl. errored tickers
+        "passed_count": sum(1 for r in resolved if r["passes_filter"]),
+        "scanned_count": len(resolved),
         "note": note,
         "timestamp": _now_iso(),
     }
