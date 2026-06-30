@@ -2,7 +2,7 @@ import type { PortfolioData } from '../../types/portfolio';
 import { PriceChange } from '../common/PriceChange';
 import { statusDot, timeAgo, fmtEgp, dailyPct, daysUntil } from '../../lib/format';
 
-export type Tab = 'portfolio' | 'opportunities' | 'history';
+export type Tab = 'portfolio' | 'indices' | 'opportunities' | 'history';
 
 function NavItem({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: string; label: string }) {
   return (
@@ -56,6 +56,7 @@ export function Sidebar({
 
       <nav className="flex flex-col gap-1">
         <NavItem active={tab === 'portfolio'} onClick={() => setTab('portfolio')} icon="📊" label="Portfolio" />
+        <NavItem active={tab === 'indices'} onClick={() => setTab('indices')} icon="📈" label="EGX Indices" />
         <NavItem active={tab === 'opportunities'} onClick={() => setTab('opportunities')} icon="🔍" label="Opportunities" />
         <NavItem active={tab === 'history'} onClick={() => setTab('history')} icon="📜" label="History" />
       </nav>

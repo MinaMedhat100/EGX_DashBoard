@@ -216,3 +216,52 @@ export interface ScanResponse {
   model: string;
   mode?: 'market' | 'watchlist';
 }
+
+export interface IndexAi {
+  index: string;
+  regime: string;
+  trend: string;
+  thesis: string;
+  key_support?: number;
+  key_resistance?: number;
+}
+
+export interface IndexStats {
+  avg_change?: number | null;
+  advancing?: number | null;
+  declining?: number | null;
+  unchanged?: number | null;
+  breadth?: number | null;
+  sentiment?: string | null;
+  total_constituents?: number | null;
+}
+
+export interface IndexSector { sector: string; stocks_count: number; avg_change: number; }
+export interface IndexConstituent {
+  symbol: string;
+  sector?: string | null;
+  change_pct?: number | null;
+  rsi?: number | null;
+  bb_signal?: string | null;
+}
+
+export interface IndexData {
+  index: string;
+  coin_symbol: string;
+  level: number | null;
+  change_pct: number | null;
+  indicators: Record<string, number | string | null>;
+  mtf?: Mtf | null;
+  stats?: IndexStats;
+  sectors?: IndexSector[];
+  top_gainers?: IndexConstituent[];
+  top_losers?: IndexConstituent[];
+  ai?: IndexAi | null;
+}
+
+export interface IndexSnapshot {
+  timestamp: string;
+  model: string;
+  overall: { regime: string; summary: string } | null;
+  indices: IndexData[];
+}

@@ -9,6 +9,7 @@ import type {
   RefreshAiResult,
   ScanResponse,
   ScanParamsDto,
+  IndexSnapshot,
 } from '../types/portfolio';
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
@@ -60,6 +61,14 @@ export const api = {
     req<ScanResponse>('/scan-watchlist', {
       method: 'POST',
       body: JSON.stringify({ tickers, ...params }),
+    }),
+
+  getIndices: () => req<{ snapshot: IndexSnapshot | null }>('/indices'),
+
+  refreshIndices: (model?: string) =>
+    req<{ ok: boolean; error?: string; snapshot: IndexSnapshot | null }>('/indices/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ model }),
     }),
 
   scanHistory: () => req<{ runs: ScanRunSummary[] }>('/scan-history'),

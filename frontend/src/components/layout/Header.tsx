@@ -2,6 +2,7 @@ import type { Tab } from './Sidebar';
 
 const TITLES: Record<Tab, { title: string; sub: string }> = {
   portfolio: { title: 'Portfolio', sub: 'Positions, KPIs, AI analysis & targets' },
+  indices: { title: 'EGX Indices Tracker', sub: 'EGX30/70/100 regime, trend & internals' },
   opportunities: { title: 'EGX Market Opportunities', sub: 'Screener results with AI-ranked entries' },
   history: { title: 'Trade History', sub: 'Action log & exited positions' },
 };
