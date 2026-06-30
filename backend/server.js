@@ -10,6 +10,7 @@ import newsRoutes from './routes/news.js';
 import ordersRoutes from './routes/orders.js';
 import positionsRoutes from './routes/positions.js';
 import watchlistRoutes from './routes/watchlist.js';
+import indicesRoutes from './routes/indices.js';
 import { bridge } from './services/bridgeClient.js';
 import { DEFAULT_MODEL } from './services/analystService.js';
 
@@ -37,6 +38,7 @@ app.use('/api', newsRoutes);
 app.use('/api', ordersRoutes);
 app.use('/api', positionsRoutes);
 app.use('/api', watchlistRoutes);
+app.use('/api', indicesRoutes);
 
 // central error handler
 // eslint-disable-next-line no-unused-vars

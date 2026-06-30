@@ -26,5 +26,6 @@ export const bridge = {
   scanWatchlist: (params) =>
     call('/scan-watchlist', { method: 'POST', body: params, timeoutMs: 300000 }),
   marketOverview: () => call('/market-overview', { timeoutMs: 120000 }),
+  indices: () => call('/index-tracker', { timeoutMs: 180000 }),
   news: (ticker) => call(`/news/${encodeURIComponent(ticker)}`, { timeoutMs: 30000 }),
 };
