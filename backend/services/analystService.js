@@ -163,15 +163,22 @@ export async function analyzePortfolio(positions, model = DEFAULT_MODEL) {
 }
 
 // ── opportunity analysis ─────────────────────────────────────────────────────
-function opportunityPrompt(candidates, market, exclude, strategy) {
+export function opportunityPrompt(candidates, market, exclude, strategy, mode = 'market') {
   const slim = candidates.map((c) => ({
     ticker: c.ticker, sector: c.sector, stock_score: c.stock_score, grade: c.grade,
     trend_state: c.trend_state, signals: c.signals, di_gap: c.di_gap,
     indicators: c.indicators, suggested: c.suggested,
   }));
+  const watchlist = mode === 'watchlist';
+  const selectLine = watchlist
+    ? "These are the trader's HAND-PICKED watchlist names. Analyze and rank ALL of them — do not "
+      + 'drop any, do not cap the count, do not exclude held positions. Give an honest read and '
+      + 'conviction (1-5) for EACH, even when weak; when a name fails the ADX/DI/RSI momentum '
+      + 'profile, say so in the thesis and lower conviction rather than omitting it.'
+    : 'Select up to 8 best entries.';
   return [
-    'You are an expert EGX swing-trading analyst. From the screened candidates below, select and',
-    'rank the BEST swing-trade entry opportunities per the trader\'s strategy. STRICT JSON only.',
+    'You are an expert EGX swing-trading analyst. From the candidates below, analyse and rank the',
+    "swing-trade entry opportunities per the trader's strategy. STRICT JSON only.",
     '',
     '=== STRATEGY ===', strategy,
     '',
@@ -179,10 +186,11 @@ function opportunityPrompt(candidates, market, exclude, strategy) {
     '',
     '=== ALREADY HELD (exclude) ===', JSON.stringify(exclude || []),
     '',
-    '=== CANDIDATES (pre-screened, with live indicators + baseline levels) ===',
+    '=== CANDIDATES (with live indicators + baseline levels) ===',
     JSON.stringify(slim, null, 1),
     '',
-    'Select up to 8 best entries. Respond with ONLY this JSON:',
+    selectLine,
+    'Respond with ONLY this JSON:',
     '{"opportunities":[{',
     '  "ticker": "EGAS", "sector": "utilities", "score": 0-100, "tv_signal": "Strong Buy|Buy|Neutral",',
     '  "adx": number, "plus_di": number, "minus_di": number, "rsi": number, "macd": "bullish|bearish",',
@@ -192,23 +200,30 @@ function opportunityPrompt(candidates, market, exclude, strategy) {
     '  "thesis": "why this is a strong entry, citing indicators", "conviction": 1-5',
     '}]}',
     '',
+    watchlist
+      ? 'Set "sector" to the company\'s EGX sector if you recognize it (e.g. banks, real_estate); '
+        + 'use null if unsure — do NOT guess. (Watchlist scans do not run the screener.)'
+      : '',
     'Each candidate has indicators.mtf (multi-timeframe: weekly_bias, daily_bias, wd_aligned,',
     'higher_tf_bullish, alignment_status). Per strategy the WEEKLY sets bias — STRONGLY prefer',
-    'candidates with weekly_bias Bullish and wd_aligned true; down-rank or drop ones whose higher',
-    'timeframe is bearish/unaligned even if the daily looks clean. Echo weekly_bias/wd_aligned in output.',
-    'If indicators.mtf is null/absent, multi-timeframe data was UNAVAILABLE for that candidate —',
-    'set weekly_bias to "Unknown" and wd_aligned to false. Do NOT invent a bias; treat the weekly as',
-    'unconfirmed (mild caution) rather than assuming Neutral/Bullish.',
-    'Rank by quality (score desc). Prefer ADX strong (>40), +DI clearly > -DI, RSI 40-70 (room to run),',
-    'MACD bullish, and R:R to T2 >= 2 where possible. Refine the baseline levels to sensible',
-    'structure-based stops/targets. Exclude anything already held. Output JSON only.',
+    'candidates with weekly_bias Bullish and wd_aligned true; down-rank ones whose higher timeframe',
+    'is bearish/unaligned even if the daily looks clean. Echo weekly_bias/wd_aligned in output.',
+    'If indicators.mtf is null/absent, multi-timeframe data was UNAVAILABLE — set weekly_bias to',
+    '"Unknown" and wd_aligned to false. Do NOT invent a bias.',
+    'Prefer ADX strong (>40), +DI clearly > -DI, RSI 40-70, MACD bullish, R:R to T2 >= 2 where',
+    'possible. Refine the baseline levels to sensible structure-based stops/targets. Output JSON only.',
   ].join('\n');
 }
 
-export async function analyzeOpportunities(candidates, market, exclude, model = DEFAULT_MODEL) {
+export function finalizeOpportunities(arr, mode = 'market') {
+  return mode === 'watchlist' ? arr : arr.slice(0, 8);
+}
+
+export async function analyzeOpportunities(candidates, market, exclude, model = DEFAULT_MODEL, opts = {}) {
+  const mode = opts.mode || 'market';
   const strategy = await strategyText();
-  const text = await runClaude(opportunityPrompt(candidates, market, exclude, strategy), model);
+  const text = await runClaude(opportunityPrompt(candidates, market, exclude, strategy, mode), model);
   const parsed = extractJson(text);
   const arr = Array.isArray(parsed) ? parsed : (parsed.opportunities || parsed.picks || []);
-  return arr.slice(0, 8);
+  return finalizeOpportunities(arr, mode);
 }
