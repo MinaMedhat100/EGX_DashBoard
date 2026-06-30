@@ -227,3 +227,50 @@ export async function analyzeOpportunities(candidates, market, exclude, model = 
   const arr = Array.isArray(parsed) ? parsed : (parsed.opportunities || parsed.picks || []);
   return finalizeOpportunities(arr, mode);
 }
+
+// ── EGX indices analysis ───────────────────────────────────────────────────────
+export function indicesPrompt(indices, strategy) {
+  const slim = indices.map((x) => ({
+    index: x.index, level: x.level, change_pct: x.change_pct,
+    indicators: x.indicators, mtf: x.mtf, stats: x.stats, sectors: x.sectors,
+  }));
+  return [
+    'You are an expert EGX market strategist. Read the REGIME of each EGX index below and return',
+    'STRICT JSON only — no prose, no markdown.',
+    '',
+    '=== STRATEGY ===', strategy,
+    '',
+    '=== INDICES (live level + indicators + breadth + sector rotation) ===',
+    JSON.stringify(slim, null, 1),
+    '',
+    'For EACH index output one object. Respond with ONLY this JSON:',
+    '{"indices":[{',
+    '  "index": "EGX30",',
+    '  "regime": "Risk-On|Neutral|Risk-Off",',
+    '  "trend": "Bullish|Neutral|Bearish",',
+    '  "thesis": "2-3 sentences citing breadth %, RSI/ADX, sector leadership and the W/D bias",',
+    '  "key_support": number, "key_resistance": number',
+    '}],',
+    '"overall": { "regime": "Risk-On|Neutral|Risk-Off", "summary": "one line on overall EGX posture" }}',
+    '',
+    'Base regime on breadth (advancing vs declining), trend (price vs EMA50/EMA200), RSI/ADX and the',
+    'multi-timeframe (mtf) weekly/daily bias. key_support/key_resistance in index points from the',
+    "index's own support_1 / resistance_1. Output JSON only.",
+  ].join('\n');
+}
+
+export function mergeIndexAi(indices, ai) {
+  const byName = {};
+  for (const a of (ai?.indices || [])) if (a && a.index) byName[a.index] = a;
+  return {
+    indices: indices.map((x) => ({ ...x, ai: byName[x.index] || null })),
+    overall: ai?.overall || null,
+  };
+}
+
+export async function analyzeIndices(indices, model = DEFAULT_MODEL) {
+  const strategy = await strategyText();
+  const text = await runClaude(indicesPrompt(indices, strategy), model);
+  const parsed = extractJson(text);
+  return mergeIndexAi(indices, parsed);
+}
