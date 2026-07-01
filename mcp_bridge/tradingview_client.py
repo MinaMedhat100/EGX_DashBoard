@@ -27,6 +27,11 @@ TV_MCP_ARGS = os.environ.get(
 
 CALL_TIMEOUT = float(os.environ.get("TV_MCP_CALL_TIMEOUT", "45"))
 
+# Self-heal: when a tool RESULT is the empty-body/throttle signature (TradingView handed the
+# MCP tool an empty body on a stuck connection), reconnect and retry the call up to N times.
+TRANSIENT_RETRIES = int(os.environ.get("TV_MCP_TRANSIENT_RETRIES", "2"))
+RECONNECT_BACKOFF = float(os.environ.get("TV_MCP_RECONNECT_BACKOFF", "1.5"))
+
 
 # ── result parsing ───────────────────────────────────────────────────────────
 def _parse_result(result) -> dict:
@@ -58,6 +63,34 @@ def clean_symbol(sym: str) -> str:
     return sym.split(":", 1)[1] if ":" in sym else sym
 
 
+# ── transient/throttle detection (self-heal trigger) ─────────────────────────
+# When a connection is throttled/stuck, TradingView hands the MCP tool an EMPTY body; the tool
+# returns that as a RESULT payload (not an exception), e.g. coin_analysis ->
+# {"error": "Analysis failed: Expecting value: line 1 column 1 (char 0)"} and the screener ->
+# {"error": "No data returned for EGX stocks"}. A FRESH connection recovers, so these are worth a
+# reconnect+retry — unlike a genuine per-symbol "not found".
+_TRANSIENT_MARKERS = (
+    "expecting value",            # json.loads('') -> "Expecting value: line 1 column 1 (char 0)"
+    "line 1 column 1",
+    "no data returned for egx",   # screener empty-body throttle
+)
+
+
+def _is_transient(result: dict) -> bool:
+    """True if a tool RESULT is the empty-body/throttle signature (a reconnect can recover)."""
+    if not isinstance(result, dict):
+        return False
+    err = result.get("error")
+    if not err:
+        return False
+    low = str(err).lower()
+    return any(m in low for m in _TRANSIENT_MARKERS)
+
+
+class _Reconnect(Exception):
+    """Internal signal: drop the current MCP connection and retry the pending call on a fresh one."""
+
+
 # ── persistent connection (one warm MCP connection, owned by a single task) ──
 # Spawning a fresh uvx process per request gets rate-limited/blocked by TradingView
 # (empty bodies — the market-wide screener fails first). One long-lived connection,
@@ -68,6 +101,7 @@ class _Manager:
         self._task = None
         self.tools: list[str] = []
         self.connected = False
+        self._pending = None  # a throttled (name, args, fut, attempts) to retry after reconnect
 
     async def start(self):
         if self._task is not None:
@@ -98,21 +132,38 @@ class _Manager:
                             self.tools = []
                         self.connected = True
                         while True:
-                            name, args, fut = await self._queue.get()
+                            # retry a throttled call on this fresh connection before taking new work
+                            if self._pending is not None:
+                                name, args, fut, attempts = self._pending
+                                self._pending = None
+                            else:
+                                name, args, fut = await self._queue.get()
+                                attempts = 0
                             if fut.done():
                                 continue
                             try:
                                 res = await asyncio.wait_for(
                                     session.call_tool(name, args), timeout=CALL_TIMEOUT
                                 )
-                                fut.set_result(_parse_result(res))
+                                parsed = _parse_result(res)
+                                # Empty-body/throttle result on a stuck connection: a fresh
+                                # connection recovers, so reconnect and retry (bounded).
+                                if _is_transient(parsed) and attempts < TRANSIENT_RETRIES:
+                                    self._pending = (name, args, fut, attempts + 1)
+                                    raise _Reconnect()
+                                fut.set_result(parsed)
                             except asyncio.TimeoutError:
                                 fut.set_result({"error": f"{name} timed out after {CALL_TIMEOUT}s"})
+                            except _Reconnect:
+                                raise  # tear down this connection, reconnect, retry _pending
                             except Exception as exc:  # noqa: BLE001
                                 fut.set_result({"error": f"{name} failed: {exc!r}"})
                                 raise  # connection likely broken -> reconnect
             except asyncio.CancelledError:
                 break
+            except _Reconnect:
+                self.connected = False
+                await asyncio.sleep(RECONNECT_BACKOFF)  # cool-down, then reconnect + retry pending
             except Exception:  # noqa: BLE001
                 self.connected = False
                 await asyncio.sleep(2)  # brief pause, then reconnect
