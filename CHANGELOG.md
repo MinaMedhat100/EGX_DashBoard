@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.0
+
+**Watchlist scan + EGX Indices Tracker.**
+- The Opportunities tab can now scan a **saved watchlist** of specific tickers (🎯 Scan Watchlist)
+  in addition to the full-market scan (🔍 Scan Market). Watchlist scans analyze **every** name you
+  list (none dropped); a stock that fails the ADX/DI/RSI momentum profile is flagged with a
+  `✗ momentum` badge but still ranked. Runs are saved to history tagged by mode.
+- New **EGX Indices Tracker** tab (below Portfolio): EGX30 / EGX70 / EGX100 with live level, trend
+  read, an AI **regime** call (Risk-On / Neutral / Risk-Off) + thesis, and an expandable drill-down
+  (breadth bar, sector rotation, top gainers/losers). Manual Refresh; the latest snapshot is cached.
+
+New endpoints: bridge `POST /scan-watchlist`, `GET /index-tracker`; backend `GET/PUT /api/watchlist`,
+`POST /api/scan-watchlist`, `GET /api/indices`, `POST /api/indices/refresh`.
+
 ## 1.3.0
 
 **AI sets position levels on Log Trade.**

@@ -26,3 +26,5 @@ backend/data/portfolio_data.json
 backend/data/last_refresh.json
 backend/data/scan_history.json
 backend/data/*.backup.json
+backend/data/watchlist.json
+backend/data/indices_snapshot.json
