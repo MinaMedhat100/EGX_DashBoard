@@ -122,6 +122,13 @@ export function OpportunitiesPage() {
         )
       )}
 
+      {/* surface bridge notes (e.g. "no live data for: X") even when some names resolved */}
+      {!viewing && !scan.busy && scan.meta?.note && shownOpps && shownOpps.length > 0 && (
+        <div className="text-xs rounded-lg px-3 py-2 bg-status-orange/10 border border-status-orange/30 text-status-orange">
+          ℹ {scan.meta.note}
+        </div>
+      )}
+
       {scan.busy && <ScanningState phase={scan.phase === 'idle' ? 'scanning' : scan.phase} />}
 
       {!scan.busy && !shownOpps && (
