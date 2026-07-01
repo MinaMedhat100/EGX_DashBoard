@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.1
+
+**Fix: Opportunities scans intermittently returned "No data" until a bridge restart.**
+When the TradingView MCP connection got throttled, the upstream handed back empty bodies
+and the bridge surfaced them as a normal tool result (not an error), so the one warm
+connection stayed stuck and *every* market/watchlist scan came back empty until the bridge
+was manually restarted. The bridge now detects the empty-body/throttle signature and
+self-heals — it reconnects and retries the call on a fresh connection (bounded), so scans
+recover on their own at any time.
+
 ## 1.4.0
 
 **Watchlist scan + EGX Indices Tracker.**
