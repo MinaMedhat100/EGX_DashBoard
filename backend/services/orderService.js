@@ -57,7 +57,7 @@ function makeNewPosition(order, date) {
     chg_pos: null,
     status_key: 'yellow',
     tv_signal: '—',
-    analysis_notes: order.notes || 'New position — pending first refresh.',
+    analysis_notes: order.notes || '', // empty -> the card's "Analysis notes" section hides itself
     add_zone: '',
     sell_plan: '',
     unrealized_pnl: 0,

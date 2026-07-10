@@ -7,9 +7,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const DATA_FILE = path.join(__dirname, '..', 'data', 'portfolio_data.json');
 export const CACHE_FILE = path.join(__dirname, '..', 'data', 'last_refresh.json');
 
+// Written once at position creation and never updated again, so it stayed on the card forever.
+// v1.4.2 stops writing it; normalize() clears it from existing positions so the "Analysis notes"
+// section hides until there is a real note (the AI block carries the live analysis).
+export const LEGACY_NEW_POSITION_NOTE = 'New position — pending first refresh.';
+
 // Fill in fields added in later versions without disturbing existing data (no regen needed).
 export function normalize(data) {
   for (const p of data.positions || []) {
+    if (p.analysis_notes === LEGACY_NEW_POSITION_NOTE) p.analysis_notes = '';
     if (p.levels_source === undefined) p.levels_source = 'manual';
     if (p.t2_hit === undefined) p.t2_hit = false;
     if (p.t1_fill_price === undefined) p.t1_fill_price = null;
