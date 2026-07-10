@@ -1,6 +1,6 @@
 import type { PortfolioData } from '../../types/portfolio';
 import { PriceChange } from '../common/PriceChange';
-import { statusDot, timeAgo, fmtEgp, dailyPct, daysUntil } from '../../lib/format';
+import { statusDot, timeAgo, fmtEgp, dailyPct } from '../../lib/format';
 
 export type Tab = 'portfolio' | 'indices' | 'opportunities' | 'history';
 
@@ -15,15 +15,6 @@ function NavItem({ active, onClick, icon, label }: { active: boolean; onClick: (
       <span>{icon}</span>
       {label}
     </button>
-  );
-}
-
-function DeadlineCountdown({ date }: { date: string }) {
-  const days = daysUntil(date);
-  return (
-    <div className="text-[11px] font-semibold rounded-lg px-2 py-1.5 bg-status-red/15 border border-status-red/40 text-status-red">
-      ⏰ BAL+CCB exit by Jun 24 · {days}d left
-    </div>
   );
 }
 
@@ -87,7 +78,6 @@ export function Sidebar({
         <div className="text-xs rounded-lg px-2.5 py-1.5 bg-status-green/10 border border-status-green/30 text-status-green font-medium">
           Realized: {fmtEgp(data?.realized_pnl)}
         </div>
-        {data && <DeadlineCountdown date={data.deadline_date} />}
         <div className="text-[10px] text-txt-secondary leading-snug border-t border-white/10 pt-2">
           Thndr: ONE active order per stock — stop-loss OR limit sell, not both.
         </div>

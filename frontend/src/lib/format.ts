@@ -46,11 +46,6 @@ export function timeAgo(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export function daysUntil(iso: string): number {
-  const target = new Date(iso).getTime();
-  return Math.ceil((target - Date.now()) / 86400000);
-}
-
 export function dailyPct(s: string | null): number | null {
   if (!s) return null;
   const m = s.match(/\(([-+]?\d+\.?\d*)%\)/);

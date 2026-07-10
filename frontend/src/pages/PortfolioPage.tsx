@@ -48,7 +48,6 @@ export function PortfolioPage({
             p={p}
             refreshing={refreshing}
             onLogOrder={onLogOrder}
-            deadlineDate={data.deadline_date}
             updating={aiUpdating === p.ticker}
             proposal={proposals[p.ticker]}
             onApplyLevels={onApplyLevels}

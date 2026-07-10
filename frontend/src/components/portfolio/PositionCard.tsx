@@ -6,22 +6,13 @@ import { MtfBadge } from '../common/MtfBadge';
 import { PriceChange } from '../common/PriceChange';
 import { PriceRangeBar } from './PriceRangeBar';
 import { AnalysisPanel } from './AnalysisPanel';
-import { STATUS_META, fmtNum, fmtEgp, fmtPct, daysUntil } from '../../lib/format';
+import { STATUS_META, fmtNum, fmtEgp, fmtPct } from '../../lib/format';
 import { positionR, volatilityPct, volatilityLabel, fmtR } from '../../lib/risk';
 
 function dailyPct(s: string | null): number | null {
   if (!s) return null;
   const m = s.match(/\(([-+]?\d+\.?\d*)%\)/);
   return m ? parseFloat(m[1]) : null;
-}
-
-function DeadlineChip({ date }: { date: string }) {
-  const days = daysUntil(date);
-  return (
-    <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-lg px-2.5 py-1 bg-status-red/15 border border-status-red/50 text-status-red">
-      ⏰ EXIT BY JUN 24 &lt; 12PM — {days} day{days === 1 ? '' : 's'} remaining
-    </div>
-  );
 }
 
 function ExitFramework({ p }: { p: Position }) {
@@ -42,7 +33,6 @@ export function PositionCard({
   p,
   refreshing,
   onLogOrder,
-  deadlineDate,
   updating,
   proposal,
   onApplyLevels,
@@ -51,7 +41,6 @@ export function PositionCard({
   p: Position;
   refreshing: boolean;
   onLogOrder: (ticker: string) => void;
-  deadlineDate: string;
   updating?: boolean;
   proposal?: LevelProposal;
   onApplyLevels: (ticker: string, levels: { stop: number; t1: number; t2: number }) => void;
@@ -144,7 +133,6 @@ export function PositionCard({
       </div>
 
       {noLive && <div className="mt-2 text-[11px] text-status-yellow">⚠ No TV data — verify price in Thndr</div>}
-      {isDeadline && <DeadlineChip date={deadlineDate} />}
 
       {p.is_liquid && <PriceRangeBar p={p} />}
 
