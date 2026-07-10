@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.2
+
+**Three position-card fixes.**
+- **Analysis notes** no longer sticks on _"New position — pending first refresh."_ forever. The field
+  was written once at position creation and never updated again, so it went stale immediately. It now
+  holds only a note you actually typed when logging the order, and the section hides itself when
+  empty — the AI block above it already carries the live thesis / key risk / action line. Existing
+  positions are migrated on load (no regen needed).
+- Removed the **expired "BAL+CCB exit by Jun 24" deadline** — both the sidebar banner and the red
+  chip on the BAL/CCB position cards — plus the now-dead `deadlineDate` prop and `daysUntil` helper.
+- **Price-range bar:** when two markers sat close together (e.g. STDI's AVG and T1), their labels and
+  prices overlapped and neither was readable. Colliding markers are now staggered into a second
+  vertical lane, and the extra vertical room is reserved only when a stagger actually happens.
+
 ## 1.4.1
 
 **Fix: Opportunities scans intermittently returned "No data" until a bridge restart.**
