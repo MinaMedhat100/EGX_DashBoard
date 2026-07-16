@@ -4,6 +4,7 @@ import type { GoldUnit } from '../lib/gold';
 import { GOLD_UNITS } from '../lib/gold';
 import { GoldAnalysisCard } from '../components/goldx/GoldAnalysisCard';
 import { ThndrWindowChip } from '../components/goldx/ThndrWindowChip';
+import { GoldNews } from '../components/goldx/GoldNews';
 import { GlowCard } from '../components/common/GlowCard';
 
 export function GoldxPage() {
@@ -49,6 +50,8 @@ export function GoldxPage() {
       )}
 
       {snap && <GoldAnalysisCard snap={snap} unit={unit} />}
+
+      <GlowCard className="p-4"><GoldNews /></GlowCard>
     </div>
   );
 }
