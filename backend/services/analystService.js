@@ -274,3 +274,82 @@ export async function analyzeIndices(indices, model = DEFAULT_MODEL) {
   const parsed = extractJson(text);
   return mergeIndexAi(indices, parsed);
 }
+
+// ── gold (Goldx) analysis ──────────────────────────────────────────────────────
+export function goldPrompt(snapshot, position, strategy) {
+  const holding = !!position;
+  const slim = {
+    price_usd_oz: snapshot?.indicators?.price ?? null,
+    indicators: snapshot?.indicators ?? null,
+    mtf: snapshot?.mtf ?? null,
+    usd_egp: snapshot?.usd_egp ?? null,
+    gc_usd_oz: snapshot?.gc_usd ?? null,
+    position: holding
+      ? {
+          avg_cost: position.avg_cost, shares_oz: position.shares,
+          stop_loss: position.stop_loss, t1_price: position.t1_price, t2_price: position.t2_price,
+          t1_hit: !!position.t1_hit, t2_hit: !!position.t2_hit, stop_raised: !!position.stop_raised,
+        }
+      : null,
+  };
+  const head = [
+    'You are an expert GOLD swing-trading analyst. Apply the trader\'s OWN swing strategy (below) to',
+    'live gold data and return STRICT JSON only — no prose, no markdown. All prices are in USD per',
+    'troy ounce (PAXG, 1 token = 1 oz).',
+    '',
+    '=== STRATEGY (adapt the stock rules to gold) ===', strategy,
+    '',
+    'GOLD CONTEXT: gold is macro/news-driven — weigh USD/DXY (inverse), real yields, Fed policy,',
+    'geopolitics and central-bank buying. There are no earnings or stock-score metrics for gold.',
+    'FEES: the trader may execute on Thndr (~2% round-trip commission, EGP/gram) or Binance (~0.2%,',
+    'PAXG). Factor these into target selection and say, briefly, whether a target clears the 2% Thndr',
+    'round-trip net-positive. Thndr execution windows are 10:00 / 13:00 / 15:00 Cairo.',
+    '',
+    '=== LIVE GOLD DATA ===', JSON.stringify(slim, null, 1),
+    '',
+  ];
+  const tail = holding
+    ? [
+        'You HOLD gold. Review the position. Respond with ONLY this JSON:',
+        '{',
+        '  "recommendation": "HOLD|TRIM|EXIT|ADD", "conviction": 1-5,',
+        '  "thesis": "2-3 sentences citing the ACTUAL indicators + macro/news drivers",',
+        '  "key_risk": "one short line",',
+        '  "suggested_stop": number, "suggested_t1": number, "suggested_t2": number,',
+        '  "action_line": "short imperative (venue + level)",',
+        '  "net_of_fee": "one line on Thndr 2% vs Binance ~0.2% for the next target",',
+        '  "weekly_bias": "Bullish|Bearish|Neutral|Unknown", "wd_aligned": true|false',
+        '}',
+      ]
+    : [
+        'You are FLAT (no position). Decide whether gold is a good swing entry now. Respond with ONLY',
+        'this JSON:',
+        '{',
+        '  "recommendation": "ENTER_LONG|WAIT|AVOID", "conviction": 1-5,',
+        '  "thesis": "2-3 sentences citing the ACTUAL indicators + macro/news drivers",',
+        '  "key_risk": "one short line",',
+        '  "entry_zone": [lo, hi], "stop": number, "t1": number, "t2": number,',
+        '  "t1_pct": number, "t2_pct": number, "rr": number,',
+        '  "net_of_fee": "one line on Thndr 2% vs Binance ~0.2% for T1/T2",',
+        '  "weekly_bias": "Bullish|Bearish|Neutral|Unknown", "wd_aligned": true|false',
+        '}',
+      ];
+  return [
+    ...head,
+    ...tail,
+    '',
+    'Numbers in USD/oz rounded to 2 decimals. If mtf is null, set weekly_bias "Unknown" (do NOT invent',
+    'a bias). Prefer entries with ADX strong (>40), +DI clearly > -DI, RSI 40-70, and R:R to T2 >= 2.',
+    'Output JSON only.',
+  ].join('\n');
+}
+
+export function finalizeGold(parsed) {
+  return parsed && !Array.isArray(parsed) && typeof parsed === 'object' ? parsed : {};
+}
+
+export async function analyzeGold(snapshot, position, model = DEFAULT_MODEL) {
+  const strategy = await strategyText();
+  const text = await runClaude(goldPrompt(snapshot, position, strategy), model);
+  return finalizeGold(extractJson(text));
+}
