@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.0
+
+**Goldx — a tab for swing-trading gold.**
+- New **Goldx** tab (under Opportunities): the AI analyzes gold (via PAXG — 1 token = 1 oz gold, full
+  technicals + multi-timeframe) and its news, and finds an entry with our normal stop/T1/T2, using the
+  same swing strategy as stocks with a gold-aware, macro/news-driven, fee-aware AI read.
+- **Unit toggle** — view price and levels as USD/oz, USD/gram, or EGP/gram (the technicals and R are the
+  same across units). The AI reasons about Thndr's 2% round-trip vs Binance's ~0.2% fees.
+- **Self-contained position tracker** — log a gold buy/add/sell/stop, AI-set levels, live P&L in R and
+  status, kept out of the EGX portfolio. A chip counts down to the next Thndr window (10:00/13:00/15:00).
+
+New endpoints: bridge `GET /gold-analysis`; backend `GET /api/gold`, `POST /api/gold/analyze`,
+`POST /api/gold/order`, `POST /api/gold/apply-levels`.
+
 ## 1.4.2
 
 **Three position-card fixes.**

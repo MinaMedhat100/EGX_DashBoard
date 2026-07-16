@@ -1,7 +1,7 @@
 {
   "name": "egx-dashboard",
   "private": true,
-  "version": "1.4.2",
+  "version": "1.5.0",
   "description": "Personal EGX swing-trading portfolio dashboard with autonomous TradingView data + headless-Claude AI analysis",
   "scripts": {
     "gen": "python scripts/generate_portfolio_json.py",
