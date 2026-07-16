@@ -8,6 +8,7 @@ import { Header } from './components/layout/Header';
 import { PortfolioPage } from './pages/PortfolioPage';
 import { IndicesPage } from './pages/IndicesPage';
 import { OpportunitiesPage } from './pages/OpportunitiesPage';
+import { GoldxPage } from './pages/GoldxPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { GlowCard } from './components/common/GlowCard';
 import { LogOrderModal } from './components/orders/LogOrderModal';
@@ -132,6 +133,7 @@ function Shell() {
           )}
           {data && tab === 'indices' && <IndicesPage />}
           {data && tab === 'opportunities' && <OpportunitiesPage />}
+          {data && tab === 'goldx' && <GoldxPage />}
           {data && tab === 'history' && <HistoryPage data={data} />}
         </div>
       </main>
