@@ -24,6 +24,11 @@ export function GoldxPage() {
   const snap = gold.state?.snapshot ?? null;
   const pos = gold.state?.position ?? null;
 
+  const realizedUsd = gold.state?.realized_pnl_usd ?? 0;
+  const egpRate = snap?.usd_egp ?? null;
+  const realizedDisp = unit === 'g_egp' ? (egpRate != null ? realizedUsd * egpRate : null) : realizedUsd;
+  const realizedSym = unit === 'g_egp' ? 'E£' : '$';
+
   const onSubmitOrder = async (payload: Record<string, unknown>) => {
     const r = await gold.logOrder(payload);
     (r.toasts ?? []).forEach((t) => toast(t, 'success'));
@@ -47,6 +52,11 @@ export function GoldxPage() {
           <ThndrWindowChip />
         </div>
         <div className="flex items-center gap-3">
+          {realizedUsd !== 0 && realizedDisp != null && (
+            <span className={`text-xs rounded-lg px-2 py-1 border ${realizedDisp >= 0 ? 'bg-status-green/10 border-status-green/30 text-status-green' : 'bg-status-red/10 border-status-red/30 text-status-red'}`}>
+              Realized: {realizedDisp >= 0 ? '+' : '−'}{realizedSym}{Math.abs(realizedDisp).toFixed(2)}
+            </span>
+          )}
           {snap && <span className="text-xs text-txt-secondary">Analyzed {new Date(snap.timestamp).toLocaleString('en-GB')}</span>}
           <button onClick={gold.analyze} disabled={gold.busy} className="btn-primary min-w-[170px]">
             {gold.busy ? '🧠 Analyzing gold…' : '🔍 Analyze Gold'}

@@ -15,7 +15,11 @@ export function useGold() {
     setBusy(true); setError(null);
     try {
       const r = await api.analyzeGold();
-      setState({ snapshot: r.snapshot, position: r.position, realized_pnl_usd: r.realized_pnl_usd });
+      setState((s) => ({
+        snapshot: r.snapshot,
+        position: r.position,
+        realized_pnl_usd: r.realized_pnl_usd ?? s?.realized_pnl_usd ?? 0,
+      }));
       if (!r.ok) setError(r.error || 'analysis failed');
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }

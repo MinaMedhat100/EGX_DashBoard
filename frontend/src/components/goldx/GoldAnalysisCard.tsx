@@ -22,6 +22,7 @@ function Lvl({ label, usdOz, unit, egp, color }: { label: string; usdOz?: number
 export function GoldAnalysisCard({ snap, unit }: { snap: GoldSnapshot; unit: GoldUnit }) {
   const ind = snap.indicators || {};
   const ai = snap.ai;
+  const hasAi = !!ai && Object.keys(ai).length > 0;
   const egp = snap.usd_egp;
   const price = ind.price as number | undefined;
   const rec = ai?.recommendation;
@@ -45,7 +46,7 @@ export function GoldAnalysisCard({ snap, unit }: { snap: GoldSnapshot; unit: Gol
         <div className="text-right">+DI {d1(ind.plus_di)} · −DI {d1(ind.minus_di)}</div>
       </div>
 
-      {ai ? (
+      {hasAi ? (
         <>
           <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-2">
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" style={{ background: REC_COLOR[rec ?? ''] ?? '#a855f7' }}>
