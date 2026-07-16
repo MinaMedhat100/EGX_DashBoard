@@ -238,6 +238,9 @@ class TradingView:
             args["symbol"] = symbol
         return await self.call("financial_news", args)
 
+    async def yahoo_price(self, symbol):
+        return await self.call("yahoo_price", {"symbol": symbol})
+
     async def index_analysis(self, index, timeframe="1D", limit=5):
         return await self.call(
             "egx_index_analysis", {"index": index, "timeframe": timeframe, "limit": limit}

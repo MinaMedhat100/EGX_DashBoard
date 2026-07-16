@@ -51,11 +51,11 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat()
 
 
-async def _fetch_mtf(tv, ticker, attempts: int = 3):
+async def _fetch_mtf(tv, ticker, attempts: int = 3, exchange: str = "EGX"):
     """Multi-timeframe is the heaviest call and occasionally fails transiently mid-scan;
     retry a couple of times before giving up (the data almost always exists)."""
     for _ in range(attempts):
-        mtf = extract_mtf(await tv.multi_timeframe(ticker))
+        mtf = extract_mtf(await tv.multi_timeframe(ticker, exchange=exchange))
         if mtf:
             return mtf
     return None
@@ -401,6 +401,38 @@ async def index_tracker():
     except Exception as exc:  # noqa: BLE001 — genuine connection failure
         raise HTTPException(status_code=503, detail=f"index-tracker failed: {exc!r}")
     return {"indices": out, "timestamp": _now_iso()}
+
+
+# ── gold (PAXG proxy) ─────────────────────────────────────────────────────────
+# VERIFIED 2026-07-16: spot XAU is not on the MCP; PAXG (1 token = 1 oz gold) on KuCoin
+# returns the full indicator + multi-timeframe shapes the engine already parses. USD/oz.
+GOLD_SYMBOL = "PAXGUSDT"
+GOLD_EXCHANGE = "KUCOIN"
+
+
+@app.get("/gold-analysis")
+async def gold_analysis():
+    try:
+        async with tv_session() as tv:
+            ind = extract_indicators(await tv.coin_analysis(GOLD_SYMBOL, exchange=GOLD_EXCHANGE))
+            has_data = "error" not in ind
+            mtf = await _fetch_mtf(tv, GOLD_SYMBOL, exchange=GOLD_EXCHANGE) if has_data else None
+            egp = await tv.yahoo_price("EGP=X")
+            gc = await tv.yahoo_price("GC=F")
+    except Exception as exc:  # noqa: BLE001 — genuine connection failure
+        raise HTTPException(status_code=503, detail=f"gold-analysis failed: {exc!r}")
+
+    def _price(q):
+        return q.get("price") if isinstance(q, dict) and "error" not in q else None
+
+    return {
+        "symbol": GOLD_SYMBOL,
+        "indicators": ind if has_data else {},
+        "mtf": mtf,
+        "usd_egp": _price(egp),
+        "gc_usd": _price(gc),
+        "timestamp": _now_iso(),
+    }
 
 
 @app.get("/news/{ticker}")
