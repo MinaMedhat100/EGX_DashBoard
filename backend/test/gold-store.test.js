@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { rm } from 'node:fs/promises';
+import { writeFile, rm } from 'node:fs/promises';
 import { emptyGoldState, load, save } from '../services/goldStore.js';
 
 test('emptyGoldState is a flat, position-less state', () => {
@@ -23,6 +23,16 @@ test('save then load round-trips the state', async () => {
   try {
     assert.deepEqual(await save(state, file), state);
     assert.deepEqual(await load(file), state);
+  } finally {
+    await rm(file, { force: true });
+  }
+});
+
+test('load rethrows on a corrupt (non-JSON) file instead of silently wiping state', async () => {
+  const file = path.join(tmpdir(), `gold-${randomUUID()}.json`);
+  await writeFile(file, 'not json {{{', 'utf-8');
+  try {
+    await assert.rejects(() => load(file));
   } finally {
     await rm(file, { force: true });
   }

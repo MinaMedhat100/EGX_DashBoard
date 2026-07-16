@@ -14,8 +14,9 @@ export function emptyGoldState() {
 export async function load(file = FILE) {
   try {
     return { ...emptyGoldState(), ...JSON.parse(await readFile(file, 'utf-8')) };
-  } catch {
-    return emptyGoldState();
+  } catch (err) {
+    if (err.code === 'ENOENT') return emptyGoldState();
+    throw err;
   }
 }
 
