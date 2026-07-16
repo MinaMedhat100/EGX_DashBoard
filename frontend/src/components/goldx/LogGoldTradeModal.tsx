@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type OrderType = 'BUY_NEW' | 'BUY_ADD' | 'SELL' | 'STOP_OUT';
 
@@ -9,6 +9,7 @@ export function LogGoldTradeModal({ open, hasPosition, onClose, onSubmit }: {
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [type, setType] = useState<OrderType>(hasPosition ? 'BUY_ADD' : 'BUY_NEW');
+  useEffect(() => { if (open) setType(hasPosition ? 'BUY_ADD' : 'BUY_NEW'); }, [open, hasPosition]);
   const [shares, setShares] = useState('');
   const [price, setPrice] = useState('');
   const [target, setTarget] = useState<'T1' | 'T2'>('T1');

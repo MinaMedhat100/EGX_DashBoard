@@ -1,6 +1,6 @@
 import type { GoldPosition } from '../../types/portfolio';
 import type { GoldUnit } from '../../lib/gold';
-import { fmtGold, convertPrice } from '../../lib/gold';
+import { fmtGold } from '../../lib/gold';
 import { GlowCard } from '../common/GlowCard';
 import { StatusBadge } from '../common/StatusBadge';
 import { MtfBadge } from '../common/MtfBadge';
@@ -9,8 +9,9 @@ export function GoldPositionCard({ p, unit, usdEgp, onLog }: { p: GoldPosition; 
   const one_R = p.avg_cost - p.stop_loss;
   const liveR = one_R > 0 ? (p.live_price - p.avg_cost) / one_R : null;
   const pnlUsd = p.unrealized_pnl;
-  // display P&L in the selected currency-per-oz basis: value difference × shares, converted
-  const pnlDisp = convertPrice(pnlUsd != null ? pnlUsd : null, unit === 'g_egp' ? 'g_egp' : unit === 'g_usd' ? 'g_usd' : 'oz_usd', usdEgp);
+  // unrealized_pnl is an aggregate USD total, not a per-oz price: only the EGP unit needs the USD->EGP leg
+  const pnlDisp = pnlUsd == null ? null : unit === 'g_egp' ? (usdEgp != null ? pnlUsd * usdEgp : null) : pnlUsd;
+  const pnlSym = unit === 'g_egp' ? 'E£' : '$';
 
   return (
     <GlowCard className="p-4">
@@ -33,7 +34,7 @@ export function GoldPositionCard({ p, unit, usdEgp, onLog }: { p: GoldPosition; 
         <div className="text-right">
           {pnlDisp != null ? (
             <span className={`font-semibold ${pnlDisp >= 0 ? 'text-status-green' : 'text-accent-magenta'}`}>
-              {pnlDisp >= 0 ? '+' : ''}{pnlDisp.toFixed(2)}{p.unrealized_pct != null ? ` (${p.unrealized_pct}%)` : ''}
+              {pnlDisp >= 0 ? '+' : '−'}{pnlSym}{Math.abs(pnlDisp).toFixed(2)}{p.unrealized_pct != null ? ` (${p.unrealized_pct}%)` : ''}
             </span>
           ) : <span className="text-txt-secondary text-xs">—</span>}
         </div>
