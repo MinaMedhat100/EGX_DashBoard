@@ -265,3 +265,44 @@ export interface IndexSnapshot {
   overall: { regime: string; summary: string } | null;
   indices: IndexData[];
 }
+
+export interface GoldAi {
+  recommendation: string;
+  conviction?: number;
+  thesis?: string;
+  key_risk?: string;
+  entry_zone?: [number, number];
+  stop?: number; t1?: number; t2?: number; t1_pct?: number; t2_pct?: number; rr?: number;
+  suggested_stop?: number; suggested_t1?: number; suggested_t2?: number; action_line?: string;
+  net_of_fee?: string;
+  weekly_bias?: string; wd_aligned?: boolean;
+}
+
+export interface GoldSnapshot {
+  indicators: Record<string, number | string | null>;
+  mtf?: Mtf | null;
+  usd_egp: number | null;
+  gc_usd: number | null;
+  ai: GoldAi | null;
+  model: string;
+  timestamp: string;
+}
+
+export interface GoldPosition {
+  avg_cost: number; live_price: number; shares: number;
+  stop_loss: number; stop_raised: boolean;
+  levels_source?: 'pending' | 'ai' | 'manual';
+  t1_hit: boolean; t2_hit: boolean;
+  t1_fill_price: number | null; t2_fill_price: number | null;
+  t1_price: number; t2_price: number;
+  position_label: string; status_key: StatusKey;
+  unrealized_pnl: number | null; unrealized_pct: number | null;
+  mtf?: Mtf | null;
+  ai: GoldAi | null;
+}
+
+export interface GoldState {
+  snapshot: GoldSnapshot | null;
+  position: GoldPosition | null;
+  realized_pnl_usd: number;
+}

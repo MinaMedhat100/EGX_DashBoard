@@ -10,6 +10,8 @@ import type {
   ScanResponse,
   ScanParamsDto,
   IndexSnapshot,
+  GoldState,
+  GoldPosition,
 } from '../types/portfolio';
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
@@ -70,6 +72,17 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ model }),
     }),
+
+  getGold: () => req<GoldState>('/gold'),
+
+  analyzeGold: (model?: string) =>
+    req<{ ok: boolean; error?: string } & GoldState>('/gold/analyze', { method: 'POST', body: JSON.stringify({ model }) }),
+
+  logGoldOrder: (payload: Record<string, unknown>) =>
+    req<{ ok: boolean; position: GoldPosition | null; realized_pnl_usd: number; toasts?: string[] }>('/gold/order', { method: 'POST', body: JSON.stringify(payload) }),
+
+  applyGoldLevels: (levels: { stop: number; t1: number; t2: number }) =>
+    req<{ ok: boolean; position: GoldPosition }>('/gold/apply-levels', { method: 'POST', body: JSON.stringify(levels) }),
 
   scanHistory: () => req<{ runs: ScanRunSummary[] }>('/scan-history'),
   scanRun: (id: string) => req<ScanRun>(`/scan-history/${encodeURIComponent(id)}`),
