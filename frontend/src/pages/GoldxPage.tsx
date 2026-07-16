@@ -5,11 +5,16 @@ import { GOLD_UNITS } from '../lib/gold';
 import { GoldAnalysisCard } from '../components/goldx/GoldAnalysisCard';
 import { ThndrWindowChip } from '../components/goldx/ThndrWindowChip';
 import { GoldNews } from '../components/goldx/GoldNews';
+import { GoldPositionCard } from '../components/goldx/GoldPositionCard';
+import { LogGoldTradeModal } from '../components/goldx/LogGoldTradeModal';
 import { GlowCard } from '../components/common/GlowCard';
+import { useToast } from '../components/common/Toast';
 
 export function GoldxPage() {
   const gold = useGold();
   const [unit, setUnit] = useState<GoldUnit>('oz_usd');
+  const toast = useToast();
+  const [modal, setModal] = useState(false);
 
   useEffect(() => {
     gold.load();
@@ -17,6 +22,14 @@ export function GoldxPage() {
   }, []);
 
   const snap = gold.state?.snapshot ?? null;
+  const pos = gold.state?.position ?? null;
+
+  const onSubmitOrder = async (payload: Record<string, unknown>) => {
+    const r = await gold.logOrder(payload);
+    (r.toasts ?? []).forEach((t) => toast(t, 'success'));
+    // BUY_NEW opens a pending position → analyze to auto-set AI levels (v1.3.0 pattern)
+    if (payload.type === 'BUY_NEW') { toast('Setting AI levels…', 'success'); gold.analyze(); }
+  };
 
   return (
     <div className="space-y-5">
@@ -50,6 +63,21 @@ export function GoldxPage() {
       )}
 
       {snap && <GoldAnalysisCard snap={snap} unit={unit} />}
+
+      {pos && (
+        <GoldPositionCard
+          p={pos}
+          unit={unit}
+          usdEgp={snap?.usd_egp ?? null}
+          onLog={() => setModal(true)}
+        />
+      )}
+
+      {!pos && snap && (
+        <button onClick={() => setModal(true)} className="btn-ghost">⚡ Log a gold buy</button>
+      )}
+
+      <LogGoldTradeModal open={modal} hasPosition={!!pos} onClose={() => setModal(false)} onSubmit={onSubmitOrder} />
 
       <GlowCard className="p-4"><GoldNews /></GlowCard>
     </div>
