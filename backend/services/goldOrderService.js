@@ -55,7 +55,7 @@ export function applyGoldOrder(state, order) {
 
   if (type === 'BUY_NEW') {
     if (pos) throw httpErr(400, 'gold position already open — use Add');
-    if (!shares || !price) throw httpErr(400, 'shares and price required');
+    if (!(shares > 0) || !(price > 0)) throw httpErr(400, 'shares and price must be positive');
     state.position = makeGoldPosition({ ...order, shares, price, date });
     state.action_log.unshift(logEntry({ type: 'BUY', shares, price, new_avg_cost: price, total_shares: shares, notes, date }));
     toasts.push(`Opened gold: ${shares}oz @ ${price}`);
@@ -65,7 +65,7 @@ export function applyGoldOrder(state, order) {
   if (!pos) throw httpErr(404, 'no open gold position');
 
   if (type === 'BUY_ADD') {
-    if (!shares || !price) throw httpErr(400, 'shares and price required');
+    if (!(shares > 0) || !(price > 0)) throw httpErr(400, 'shares and price must be positive');
     const total = pos.shares + shares;
     pos.avg_cost = round2((pos.avg_cost * pos.shares + price * shares) / total);
     pos.shares = total;
@@ -77,7 +77,7 @@ export function applyGoldOrder(state, order) {
   }
 
   if (type !== 'SELL' && type !== 'STOP_OUT') throw httpErr(400, `unknown order type ${type}`);
-  if (!shares || !price) throw httpErr(400, 'shares and price required');
+  if (!(shares > 0) || !(price > 0)) throw httpErr(400, 'shares and price must be positive');
 
   const qty = Math.min(shares, pos.shares);
   const isStop = type === 'STOP_OUT';

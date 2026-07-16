@@ -39,3 +39,25 @@ test('selling the whole position closes it (position -> null) and keeps realized
   assert.equal(s.position, null);
   assert.equal(s.realized_pnl_usd, -200);
 });
+
+test('SELL with negative shares is rejected and the position is unchanged', () => {
+  const s = emptyGoldState();
+  applyGoldOrder(s, { type: 'BUY_NEW', shares: 2, price: 4000, date: '2026-07-16' });
+  assert.throws(() => applyGoldOrder(s, { type: 'SELL', shares: -3, price: 4200, date: '2026-07-16' }));
+  assert.equal(s.position.shares, 2);
+});
+
+test('SELL(T2) marks t2_hit', () => {
+  const s = emptyGoldState();
+  applyGoldOrder(s, { type: 'BUY_NEW', shares: 4, price: 4000, date: '2026-07-16' });
+  applyGoldOrder(s, { type: 'SELL', shares: 1, price: 4600, target: 'T2', date: '2026-07-16' });
+  assert.equal(s.position.t2_hit, true);
+});
+
+test('over-selling clamps to held ounces and closes the position', () => {
+  const s = emptyGoldState();
+  applyGoldOrder(s, { type: 'BUY_NEW', shares: 2, price: 4000, date: '2026-07-16' });
+  applyGoldOrder(s, { type: 'SELL', shares: 5, price: 4300, target: 'T1', date: '2026-07-16' });
+  assert.equal(s.position, null);
+  assert.equal(s.realized_pnl_usd, 600);
+});
