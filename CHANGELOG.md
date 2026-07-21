@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.5.1
+
+**Portfolio status fixes — target-aware badges.**
+- Position cards now recognize when a **target is hit or surpassed**. A position that runs past T2
+  no longer shows a stale _"Hold — keep stop"_ — it reads _"T2 reached — sell remaining"_ (or, when
+  the weekly/daily is still bullish, _"trail stop, keep runner"_).
+- After **T1 is filled**, a pullback into the old T1 zone no longer re-suggests trimming 50% at T1
+  again. The card manages the runner instead (raise stop to break-even, then hold toward T2). The
+  deterministic badge and the AI notes now agree.
+- **New-position copy** reworded: the stop is framed as a planning level the AI sets on the next
+  refresh (not a Thndr order you must place), and a new position stays visibly "pending" if the AI
+  can't set a stop instead of silently having none.
+
 ## 1.5.0
 
 **Goldx — a tab for swing-trading gold.**
