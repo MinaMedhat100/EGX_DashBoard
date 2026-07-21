@@ -17,7 +17,8 @@ export function applyAiLevels(position) {
   const t1 = pos(ai.suggested_t1);
   const t2 = pos(ai.suggested_t2);
   if (position.levels_source === 'pending') {
-    if (stop != null) position.stop_loss = stop;
+    if (stop == null) return { applied: false, error: 'AI returned no stop' };
+    position.stop_loss = stop;
     if (t1 != null) position.t1_price = t1;
     if (t2 != null) position.t2_price = t2;
     position.levels_source = 'ai';

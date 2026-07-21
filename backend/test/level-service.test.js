@@ -40,3 +40,12 @@ test('recomputeDerived computes P&L and status from indicators', () => {
   assert.equal(pos.unrealized_pct, 8.33);
   assert.equal(pos.status_key, 'yellow'); // ADX>=40, +DI>-DI, not near T1
 });
+
+test('applyAiLevels leaves position pending when AI returns no stop', () => {
+  const pos = { levels_source: 'pending', stop_loss: 0, t1_price: 0, t2_price: 0,
+    ai: { suggested_t1: 14, suggested_t2: 16.5 } };
+  const r = applyAiLevels(pos);
+  assert.equal(r.applied, false);
+  assert.equal(pos.levels_source, 'pending');
+  assert.equal(pos.stop_loss, 0);
+});
