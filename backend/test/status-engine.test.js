@@ -115,14 +115,14 @@ test('buildAlert flags next-target imminent vs T2 (not old T1)', () => {
   const p = P({ t1_hit: true, shares: 60, stop_loss: 11 });
   const live = L({ price: 13.8 });
   const a = buildAlert(p, live, evaluateStatus(p, live), null);
-  assert.ok(a.flags.includes('T1_IMMINENT'));
+  assert.ok(a.flags.includes('TARGET_IMMINENT'));
   assert.equal(a.thndr_action, 'Switch to LIMIT SELL 60sh @ 14');
 });
 test('buildAlert does NOT flag imminent on a filled-T1 pullback near old T1', () => {
   const p = P({ t1_hit: true, stop_loss: 11 });
   const live = L({ price: 11.9 });
   const a = buildAlert(p, live, evaluateStatus(p, live), null);
-  assert.ok(!a.flags.includes('T1_IMMINENT'));
+  assert.ok(!a.flags.includes('TARGET_IMMINENT'));
 });
 test('buildAlert emits CROSSOVER when +DI/-DI flip', () => {
   const p = P();
@@ -135,4 +135,11 @@ test('buildAlert emits STOP_BREACH flag on breach', () => {
   const live = L({ price: 8 });
   const a = buildAlert(p, live, evaluateStatus(p, live), null);
   assert.ok(a.flags.includes('STOP_BREACH'));
+});
+test('buildAlert always carries an EXIT action on stop breach even with missing momentum data', () => {
+  const p = P();
+  const live = { price: 8, adx: null, plus_di: null, minus_di: null };
+  const a = buildAlert(p, live, evaluateStatus(p, live), null);
+  assert.ok(a.flags.includes('STOP_BREACH'));
+  assert.equal(a.thndr_action, 'EXIT — stop breached');
 });

@@ -99,7 +99,7 @@ export function buildAlert(position, live, status, prev) {
   // Next-target imminent (<=2%), measured vs the next UNBOOKED target (respects t1_hit/t2_hit).
   const target = nextTarget(position);
   const tgtPrice = target === 'T1' ? position.t1_price : target === 'T2' ? position.t2_price : 0;
-  if (tgtPrice > 0 && ((tgtPrice - price) / price) * 100 <= 2) flags.push('T1_IMMINENT');
+  if (tgtPrice > 0 && ((tgtPrice - price) / price) * 100 <= 2) flags.push('TARGET_IMMINENT');
 
   if (
     prev && prev.plus_di != null && prev.minus_di != null &&
@@ -109,7 +109,10 @@ export function buildAlert(position, live, status, prev) {
   }
 
   const c = classifyPosition(position, live);
-  const thndr = c ? c.action : null;
+  let thndr = c ? c.action : null;
+  // A stop breach must always carry an action, even when momentum data (adx/DI) is missing
+  // and classifyPosition returns null — restores the pre-refactor behavior for that edge case.
+  if (thndr == null && flags.includes('STOP_BREACH')) thndr = 'EXIT — stop breached';
 
   if (!flags.length && !thndr) return null;
   return { flags, thndr_action: thndr, severity: status };
