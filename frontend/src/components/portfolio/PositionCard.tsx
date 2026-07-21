@@ -191,9 +191,10 @@ export function PositionCard({
 
       {!updating && p.levels_source === 'pending' && !editing && (
         <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-status-yellow/10 border border-status-yellow/30">
-          <div className="text-status-yellow font-medium">Levels pending</div>
+          <div className="text-status-yellow font-medium">Stop &amp; targets pending</div>
           <div className="text-[11px] text-txt-secondary mt-0.5">
-            The AI hasn't set a stop/targets yet. Log another order or hit Refresh to retry the AI.
+            The AI sets your stop &amp; targets from live indicators on the next refresh — this is a
+            planning level for the tracker, not a Thndr order. You can also set them manually.
           </div>
           <div className="flex gap-2 mt-2">
             <button onClick={() => setEditing(true)} className="btn-ghost px-3 py-1 text-xs">
