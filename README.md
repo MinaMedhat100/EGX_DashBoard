@@ -8,7 +8,7 @@ What makes it tick:
 
 - **Autonomous live data** — a FastAPI bridge spawns the TradingView MCP server
   (`uvx tradingview-mcp`) over stdio and pulls real EGX indicators. No chat, no manual steps.
-- **AI analysis layer** — the backend runs headless `claude -p` (default **Opus**) to analyze
+- **AI analysis layer** — the backend runs headless `claude -p` (default **Opus 5**) to analyze
   the fetched data against your strategy: per-position recommendation + refined stop/T1/T2, and
   AI-ranked entry opportunities. The deterministic engine owns instant status/colors; Claude
   owns the judgment.
@@ -77,7 +77,7 @@ npm run frontend    # Vite dev server     :5173
 
 See `.env.example`. Most useful knobs:
 
-- `ANALYSIS_MODEL` — `opus` (default, best) or `sonnet` (faster/cheaper) for AI analysis.
+- `ANALYSIS_MODEL` — `claude-opus-5` (default, best) or `sonnet` (faster/cheaper) for AI analysis.
 - `MCP_BRIDGE_URL` — where the backend reaches the bridge.
 
 ## How it works

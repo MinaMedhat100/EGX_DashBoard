@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.2
+
+**AI analysis now runs on Claude Opus 5.** The headless-Claude analysis layer (portfolio,
+opportunities, indices, and gold) now defaults to `claude-opus-5` instead of Opus 4.8. Override
+with the `ANALYSIS_MODEL` env var as before (e.g. `sonnet` for a faster/cheaper run).
+
 ## 1.5.1
 
 **Portfolio status fixes — target-aware badges.**
