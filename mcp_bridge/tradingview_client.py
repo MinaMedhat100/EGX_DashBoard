@@ -7,7 +7,7 @@ per bridge request and reuse it across all the tool calls that request needs —
 simple for a single-user local app. Override the command via env if it ever moves:
 
     TV_MCP_COMMAND   (default "uvx")
-    TV_MCP_ARGS      (default "--from,tradingview-mcp-server,tradingview-mcp", comma-split)
+    TV_MCP_ARGS      (default "--from,tradingview-mcp-server,--with,mcp<2,tradingview-mcp", comma-split)
 """
 
 from __future__ import annotations
@@ -21,8 +21,12 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 TV_MCP_COMMAND = os.environ.get("TV_MCP_COMMAND", "uvx")
+# Pin the spawned server to mcp<2: mcp 2.0 removed the bundled `mcp.server.fastmcp` that
+# tradingview-mcp-server (0.7.1) imports, so an unconstrained uvx resolve now pulls mcp 2.0 and
+# the server crash-loops with `ModuleNotFoundError: No module named 'mcp.server.fastmcp'`.
+# `--with mcp<2` forces the 1.x line that still ships FastMCP (uvx caches this env separately).
 TV_MCP_ARGS = os.environ.get(
-    "TV_MCP_ARGS", "--from,tradingview-mcp-server,tradingview-mcp"
+    "TV_MCP_ARGS", "--from,tradingview-mcp-server,--with,mcp<2,tradingview-mcp"
 ).split(",")
 
 CALL_TIMEOUT = float(os.environ.get("TV_MCP_CALL_TIMEOUT", "45"))

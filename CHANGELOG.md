@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.3
+
+**Fix: MCP bridge crash-loop after the `mcp` SDK 2.0 release.** The TradingView MCP server
+(`tradingview-mcp-server`, spawned via `uvx`) imports `mcp.server.fastmcp`, which `mcp` 2.0
+removed (FastMCP 2.x is now a separate package). An unconstrained `uvx` resolve began pulling
+`mcp` 2.0, so the server crash-looped with `ModuleNotFoundError: No module named
+'mcp.server.fastmcp'` and every refresh/scan/analysis came back with no live data. The bridge now
+pins the spawned server to `mcp<2` (`--with mcp<2`), and `mcp_bridge/requirements.txt` caps the
+bridge's own `mcp` at `<2` so a dependency reinstall can't drift either.
+
 ## 1.5.2
 
 **AI analysis now runs on Claude Opus 5.** The headless-Claude analysis layer (portfolio,

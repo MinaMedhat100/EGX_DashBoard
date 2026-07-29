@@ -1,4 +1,4 @@
 fastapi>=0.110
 uvicorn[standard]>=0.27
-mcp>=1.0
+mcp>=1.0,<2  # 2.0 removed mcp.server.fastmcp that tradingview-mcp-server needs (see tradingview_client.py)
 pydantic>=2.0
