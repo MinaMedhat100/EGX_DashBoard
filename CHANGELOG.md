@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.4
+
+**Fat-finger entry guard.** A position whose average cost is wildly off from the live price
+(≥ 5× either way — e.g. the share count typed into the price field) now shows a red warning on the
+card with a **Correct entry** button. The inline editor fixes shares + average cost in place
+(recording a `CORRECT` entry in the action log) instead of forcing a delete-and-re-log.
+
 ## 1.5.3
 
 **Fix: MCP bridge crash-loop after the `mcp` SDK 2.0 release.** The TradingView MCP server
