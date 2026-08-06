@@ -110,4 +110,10 @@ export const api = {
       `/positions/${encodeURIComponent(ticker)}/apply-levels`,
       { method: 'POST', body: JSON.stringify(levels) },
     ),
+
+  correctEntry: (ticker: string, entry: { shares: number; avg_cost: number }) =>
+    req<{ ok: boolean; portfolio: PortfolioData; toast: string }>(
+      `/positions/${encodeURIComponent(ticker)}/correct-entry`,
+      { method: 'POST', body: JSON.stringify(entry) },
+    ),
 };

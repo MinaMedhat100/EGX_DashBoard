@@ -92,6 +92,16 @@ function Shell() {
     }
   };
 
+  const onCorrectEntry = async (ticker: string, entry: { shares: number; avg_cost: number }) => {
+    try {
+      const r = await api.correctEntry(ticker, entry);
+      setData(r.portfolio);
+      toast(r.toast || `${ticker}: entry corrected`, 'success');
+    } catch (e) {
+      toast(`${ticker}: ${(e as Error).message}`, 'error');
+    }
+  };
+
   const onDismissProposal = (ticker: string) =>
     setProposals((m) => { const n = { ...m }; delete n[ticker]; return n; });
 
@@ -126,6 +136,7 @@ function Shell() {
               proposals={proposals}
               onApplyLevels={onApplyLevels}
               onDismissProposal={onDismissProposal}
+              onCorrectEntry={onCorrectEntry}
               staleTicker={staleTicker}
               onRefreshAll={() => { setStaleTicker(null); doRefresh(); }}
               onDismissStale={() => setStaleTicker(null)}

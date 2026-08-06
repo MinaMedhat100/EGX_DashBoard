@@ -8,6 +8,7 @@ import { PriceRangeBar } from './PriceRangeBar';
 import { AnalysisPanel } from './AnalysisPanel';
 import { STATUS_META, fmtNum, fmtEgp, fmtPct } from '../../lib/format';
 import { positionR, volatilityPct, volatilityLabel, fmtR } from '../../lib/risk';
+import { entryPriceSuspect } from '../../lib/entryGuard';
 
 function dailyPct(s: string | null): number | null {
   if (!s) return null;
@@ -37,6 +38,7 @@ export function PositionCard({
   proposal,
   onApplyLevels,
   onDismissProposal,
+  onCorrectEntry,
 }: {
   p: Position;
   refreshing: boolean;
@@ -45,12 +47,17 @@ export function PositionCard({
   proposal?: LevelProposal;
   onApplyLevels: (ticker: string, levels: { stop: number; t1: number; t2: number }) => void;
   onDismissProposal: (ticker: string) => void;
+  onCorrectEntry: (ticker: string, entry: { shares: number; avg_cost: number }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [eStop, setEStop] = useState('');
   const [eT1, setET1] = useState('');
   const [eT2, setET2] = useState('');
+  const [editingEntry, setEditingEntry] = useState(false);
+  const [eShares, setEShares] = useState('');
+  const [eAvg, setEAvg] = useState('');
+  const suspect = entryPriceSuspect(p.avg_cost, p.live_price);
   const meta = STATUS_META[p.status_key] ?? STATUS_META.yellow;
   const chg = p.chg_pos == null ? null : dailyPct(p.daily_chg);
   const isDeadline = p.ticker === 'BAL' || p.ticker === 'CCB';
@@ -181,6 +188,50 @@ export function PositionCard({
       )}
 
       {p.status_key === 'red' && p.is_liquid && <ExitFramework p={p} />}
+
+      {suspect && !editingEntry && (
+        <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-status-red/10 border border-status-red/30">
+          <div className="text-status-red font-medium">⚠ Entry price looks wrong</div>
+          <div className="text-[11px] text-txt-secondary mt-0.5">
+            Avg cost {fmtNum(p.avg_cost)} is ~{Math.round(suspect.ratio)}× the live price {fmtNum(p.live_price)} — likely a typo (e.g. the share count typed into the price field).
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => { setEShares(String(p.shares)); setEAvg(String(p.avg_cost)); setEditingEntry(true); }}
+              className="btn-ghost px-3 py-1 text-xs"
+            >
+              Correct entry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editingEntry && (
+        <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-white/5 border border-white/15">
+          <div className="text-txt-secondary text-[11px] mb-1.5">Correct entry (shares &amp; avg cost)</div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="text-[10px] uppercase text-txt-secondary">Shares</span>
+              <input type="number" step="1" value={eShares} onChange={(e) => setEShares(e.target.value)}
+                className="mt-1 w-full bg-bg-card border border-white/15 rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none" />
+            </label>
+            <label className="block">
+              <span className="text-[10px] uppercase text-txt-secondary">Avg cost</span>
+              <input type="number" step="0.01" value={eAvg} onChange={(e) => setEAvg(e.target.value)}
+                className="mt-1 w-full bg-bg-card border border-white/15 rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none" />
+            </label>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => { onCorrectEntry(p.ticker, { shares: Number(eShares) || 0, avg_cost: Number(eAvg) || 0 }); setEditingEntry(false); }}
+              className="btn-primary px-3 py-1 text-xs"
+            >
+              Save
+            </button>
+            <button onClick={() => setEditingEntry(false)} className="btn-ghost px-3 py-1 text-xs">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* level state: updating / pending / AI proposal */}
       {updating && (

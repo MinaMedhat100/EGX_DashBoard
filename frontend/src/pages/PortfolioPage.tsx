@@ -11,6 +11,7 @@ export function PortfolioPage({
   proposals,
   onApplyLevels,
   onDismissProposal,
+  onCorrectEntry,
   staleTicker,
   onRefreshAll,
   onDismissStale,
@@ -22,6 +23,7 @@ export function PortfolioPage({
   proposals: Record<string, LevelProposal>;
   onApplyLevels: (ticker: string, levels: { stop: number; t1: number; t2: number }) => void;
   onDismissProposal: (ticker: string) => void;
+  onCorrectEntry: (ticker: string, entry: { shares: number; avg_cost: number }) => void;
   staleTicker: string | null;
   onRefreshAll: () => void;
   onDismissStale: () => void;
@@ -52,6 +54,7 @@ export function PortfolioPage({
             proposal={proposals[p.ticker]}
             onApplyLevels={onApplyLevels}
             onDismissProposal={onDismissProposal}
+            onCorrectEntry={onCorrectEntry}
           />
         ))}
       </div>
