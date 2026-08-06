@@ -5,6 +5,7 @@ import { bridge } from '../services/bridgeClient.js';
 import { applyLive } from './refresh.js';
 import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
 import { applyAiLevels, commitLevels, recomputeDerived } from '../services/levelService.js';
+import { correctEntry } from '../services/orderService.js';
 
 const router = Router();
 
@@ -58,6 +59,20 @@ router.post('/positions/:ticker/apply-levels', async (req, res, next) => {
     recomputeDerived(posn);
     await save(data);
     res.json({ ok: true, position: posn });
+  } catch (e) { next(e); }
+});
+
+// Correct a fat-finger entry: override shares + avg_cost, recompute status/alert, persist.
+router.post('/positions/:ticker/correct-entry', async (req, res, next) => {
+  try {
+    const ticker = (req.params.ticker || '').toUpperCase();
+    const { shares, avg_cost } = req.body || {};
+    const data = await load();
+    const date = new Date().toISOString().slice(0, 10);
+    const { toasts } = correctEntry(data, { ticker, shares, avg_cost, date });
+    recomputeDerived(getPosition(data, ticker)); // shares changed -> refresh status/alert
+    await save(data);
+    res.json({ ok: true, portfolio: data, toast: toasts.join(' · ') });
   } catch (e) { next(e); }
 });
 

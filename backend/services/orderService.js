@@ -198,3 +198,29 @@ export function applyOrder(data, order) {
 
   return { toasts };
 }
+
+// correctEntry — fix a fat-finger entry: override shares + avg_cost directly (not FIFO),
+// recompute P&L, and record a CORRECT audit entry. Caller recomputes status/alert.
+export function correctEntry(data, { ticker, shares, avg_cost, date }) {
+  const t = (ticker || '').toUpperCase();
+  const s = Number(shares);
+  const c = round2(Number(avg_cost));
+  if (!(s > 0) || !(c > 0)) throw httpErr(400, 'shares and avg_cost must be positive');
+  const pos = data.positions.find((p) => p.ticker === t);
+  if (!pos) throw httpErr(404, `position ${t} not found`);
+  const from = { shares: pos.shares, avg_cost: pos.avg_cost };
+  pos.shares = s;
+  pos.avg_cost = c;
+  pos.position_label = `${s}sh — corrected ${date} @ ${c}`;
+  if (pos.live_price > 0) {
+    pos.unrealized_pnl = round2((pos.live_price - c) * s);
+    pos.unrealized_pct = round2(((pos.live_price - c) / c) * 100);
+  }
+  data.action_log.unshift(
+    logEntry({
+      type: 'CORRECT', ticker: t, shares: s, price: c, new_avg_cost: c, total_shares: s,
+      notes: `entry corrected from ${from.shares}sh @ ${from.avg_cost}`, date,
+    }),
+  );
+  return { toasts: [`${t}: entry corrected to ${s}sh @ ${c}`] };
+}
