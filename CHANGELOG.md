@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.0
+
+**AI now reasons with news, market regime, and memory.**
+- **News grounding** — the portfolio, opportunity, and gold analyses now receive recent headlines
+  (via the existing Google-News path) so the AI factors real catalysts, not just technicals. Gold
+  also gets live **DXY** and **US 10-year yield**, so its macro read uses actual prints.
+- **Regime aware** — the Indices tab's Risk-On/Neutral/Risk-Off regime is fed into the portfolio and
+  opportunity prompts (defensive in Risk-Off), instead of being siloed in its own tab.
+- **Memory** — each analysis sees its previous read and reports **vs prior: unchanged / changed**
+  (with a reason), and stops churning levels on noise. Cards show a vs-prior chip and a catalyst line.
+
 ## 1.5.4
 
 **Fat-finger entry guard.** A position whose average cost is wildly off from the live price
