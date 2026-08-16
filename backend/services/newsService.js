@@ -52,7 +52,7 @@ function parseRss(xml) {
   return items;
 }
 
-async function googleNews(query) {
+export async function newsForQuery(query) {
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
   try {
     const res = await fetch(url, {
@@ -84,7 +84,7 @@ export async function getNews(ticker) {
   const name = EGX_NAMES[key];
   const query = name ? `${name} Egypt stock` : `${ticker} EGX Egypt stock`;
 
-  const collected = [...(await googleNews(query))];
+  const collected = [...(await newsForQuery(query))];
 
   // bridge (MCP financial_news) — usually empty for EGX, merge whatever exists.
   try {
