@@ -21,11 +21,17 @@ function AiBlock({ ai }: { ai: AiAnalysis }) {
         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded gradient-purple text-white">AI</span>
         <span className="font-bold" style={{ color }}>{ai.recommendation}</span>
         <span className="text-txt-secondary text-xs">conviction {ai.conviction}/5</span>
+        {ai.vs_prior && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-txt-secondary">
+            vs prior: {ai.vs_prior}{ai.vs_prior === 'changed' && ai.change_reason ? ` — ${ai.change_reason}` : ''}
+          </span>
+        )}
         {ai.model && <span className="ml-auto text-[10px] text-txt-secondary uppercase">{ai.model}</span>}
       </div>
       <p className="text-txt-primary leading-snug">{ai.thesis}</p>
       {ai.key_risk && <p className="text-xs text-status-orange mt-1.5">⚠ {ai.key_risk}</p>}
       {ai.action_line && <p className="text-xs text-accent-cyan mt-1.5 font-medium">→ {ai.action_line}</p>}
+      {ai.catalyst && <p className="text-[11px] text-txt-secondary mt-1.5">📰 {ai.catalyst}</p>}
       {hasLevels && (
         <div className="flex gap-4 mt-2 text-xs font-mono">
           <span className="text-status-red">stop {fmtNum(ai.suggested_stop)}</span>

@@ -32,6 +32,9 @@ export interface AiAnalysis {
   action_line?: string;
   model?: string;
   analyzed_at?: string;
+  vs_prior?: 'unchanged' | 'changed';
+  change_reason?: string;
+  catalyst?: string;
 }
 
 export interface Position {
@@ -276,6 +279,9 @@ export interface GoldAi {
   suggested_stop?: number; suggested_t1?: number; suggested_t2?: number; action_line?: string;
   net_of_fee?: string;
   weekly_bias?: string; wd_aligned?: boolean;
+  vs_prior?: 'unchanged' | 'changed';
+  change_reason?: string;
+  catalyst?: string;
 }
 
 export interface GoldSnapshot {
@@ -283,6 +289,8 @@ export interface GoldSnapshot {
   mtf?: Mtf | null;
   usd_egp: number | null;
   gc_usd: number | null;
+  dxy?: { price: number; change_pct?: number } | null;
+  us10y?: { price: number; change_pct?: number } | null;
   ai: GoldAi | null;
   model: string;
   timestamp: string;

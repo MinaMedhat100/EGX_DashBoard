@@ -38,6 +38,11 @@ export function GoldAnalysisCard({ snap, unit }: { snap: GoldSnapshot; unit: Gol
         <div className="text-right">
           <div className="font-mono font-bold text-lg">{fmtGold(price, unit, egp)}</div>
           {snap.gc_usd != null && <div className="text-[10px] text-txt-secondary">GC=F ${snap.gc_usd}</div>}
+          {(snap.dxy || snap.us10y) && (
+            <div className="text-[10px] text-txt-secondary">
+              {snap.dxy ? `DXY ${snap.dxy.price}` : ''}{snap.dxy && snap.us10y ? ' · ' : ''}{snap.us10y ? `US10Y ${snap.us10y.price}%` : ''}
+            </div>
+          )}
         </div>
       </div>
 
@@ -53,6 +58,11 @@ export function GoldAnalysisCard({ snap, unit }: { snap: GoldSnapshot; unit: Gol
               {rec ?? '—'}
             </span>
             <span className="text-txt-secondary text-xs">conviction {ai.conviction ?? '—'}/5</span>
+            {ai.vs_prior && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-txt-secondary">
+                vs prior: {ai.vs_prior}{ai.vs_prior === 'changed' && ai.change_reason ? ` — ${ai.change_reason}` : ''}
+              </span>
+            )}
             {ai.weekly_bias && <span className="ml-auto text-[10px] text-txt-secondary">weekly {ai.weekly_bias}</span>}
           </div>
           {(ai.entry_zone || ai.stop != null) && (
