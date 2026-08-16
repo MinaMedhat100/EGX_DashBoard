@@ -5,6 +5,7 @@ import { load, save, liquidTickers } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
 import { evaluateStatus, buildAlert } from '../services/statusEngine.js';
 import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
+import { gatherNews, latestRegime } from '../services/aiContext.js';
 
 const router = Router();
 
@@ -69,7 +70,9 @@ router.post('/analyze', async (req, res, next) => {
   try {
     const model = req.body?.model || DEFAULT_MODEL;
     const data = await load();
-    const aiMap = await analyzePortfolio(data.positions, model);
+    const tickers = data.positions.filter((p) => p.is_liquid).map((p) => p.ticker);
+    const [news, regime] = await Promise.all([gatherNews(tickers), latestRegime()]);
+    const aiMap = await analyzePortfolio(data.positions, model, { news, regime });
     const analyzed_at = new Date().toISOString();
     for (const p of data.positions) {
       if (aiMap[p.ticker]) p.ai = { ...aiMap[p.ticker], model, analyzed_at };

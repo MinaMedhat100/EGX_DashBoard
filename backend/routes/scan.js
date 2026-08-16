@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { load } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
 import { analyzeOpportunities, DEFAULT_MODEL } from '../services/analystService.js';
+import { gatherNews, latestRegime } from '../services/aiContext.js';
 import { appendRun, listRuns, getRun, clearRuns } from '../services/scanHistoryStore.js';
 
 const router = Router();
@@ -61,7 +62,10 @@ router.post('/scan-opportunities', async (req, res, next) => {
     // Skip the AI call entirely when the screener returned nothing (e.g. pre-market).
     if (candidates && candidates.length) {
       try {
-        opportunities = await analyzeOpportunities(candidates, market, exclude, model);
+        const [news, regime] = await Promise.all([
+          gatherNews((candidates || []).map((c) => c.ticker)), latestRegime(),
+        ]);
+        opportunities = await analyzeOpportunities(candidates, market, exclude, model, { context: { news, regime } });
         if (!opportunities?.length) throw new Error('empty AI result');
       } catch {
         opportunities = deterministicRank(scan.candidates);
@@ -129,7 +133,10 @@ router.post('/scan-watchlist', async (req, res, next) => {
     let fallback = false;
     if (candidates.length) {
       try {
-        opportunities = await analyzeOpportunities(candidates, market, [], model, { mode: 'watchlist' });
+        const [news, regime] = await Promise.all([
+          gatherNews(candidates.map((c) => c.ticker)), latestRegime(),
+        ]);
+        opportunities = await analyzeOpportunities(candidates, market, [], model, { mode: 'watchlist', context: { news, regime } });
         if (!opportunities?.length) throw new Error('empty AI result');
       } catch {
         opportunities = deterministicRank(candidates, candidates.length); // no cap for watchlist

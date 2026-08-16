@@ -6,6 +6,7 @@ import { applyLive } from './refresh.js';
 import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
 import { applyAiLevels, commitLevels, recomputeDerived } from '../services/levelService.js';
 import { correctEntry } from '../services/orderService.js';
+import { gatherNews, latestRegime } from '../services/aiContext.js';
 
 const router = Router();
 
@@ -30,7 +31,8 @@ router.post('/positions/:ticker/refresh-ai', async (req, res, next) => {
 
     let result = { applied: false };
     try {
-      const aiMap = await analyzePortfolio([posn], model);
+      const [news, regime] = await Promise.all([gatherNews([ticker]), latestRegime()]);
+      const aiMap = await analyzePortfolio([posn], model, { news, regime });
       if (aiMap[ticker]) {
         posn.ai = { ...aiMap[ticker], model, analyzed_at: new Date().toISOString() };
         result = applyAiLevels(posn);

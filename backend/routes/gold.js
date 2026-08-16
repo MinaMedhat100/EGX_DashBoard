@@ -3,6 +3,7 @@ import { Router } from 'express';
 import * as goldStore from '../services/goldStore.js';
 import { applyGoldOrder } from '../services/goldOrderService.js';
 import { analyzeGold, DEFAULT_MODEL } from '../services/analystService.js';
+import { goldMacroNews } from '../services/aiContext.js';
 import { bridge } from '../services/bridgeClient.js';
 import { evaluateStatus, buildAlert } from '../services/statusEngine.js';
 
@@ -47,7 +48,9 @@ router.post('/gold/analyze', async (req, res, next) => {
     if (s.position) applyGoldLive(s.position, data.indicators, data.mtf);
 
     let ai = null;
-    try { ai = await analyzeGold({ ...data }, s.position, model); }
+    const prior_ai = s.snapshot?.ai ?? null;
+    const news = await goldMacroNews();
+    try { ai = await analyzeGold({ ...data }, s.position, model, { news, prior_ai }); }
     catch { /* AI unavailable — keep data, ai stays null */ }
 
     // BUY_NEW just opened a pending position: adopt the AI's suggested levels (v1.3.0 pattern)
