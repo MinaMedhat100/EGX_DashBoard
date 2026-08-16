@@ -410,6 +410,17 @@ GOLD_SYMBOL = "PAXGUSDT"
 GOLD_EXCHANGE = "KUCOIN"
 
 
+async def _yahoo_quote(tv, symbol):
+    """Best-effort {price, change_pct} for a Yahoo symbol; None on any failure (never raises)."""
+    try:
+        r = await tv.yahoo_price(symbol)
+        if isinstance(r, dict) and "error" not in r and r.get("price") is not None:
+            return {"price": r.get("price"), "change_pct": r.get("change_pct")}
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 @app.get("/gold-analysis")
 async def gold_analysis():
     try:
@@ -419,6 +430,8 @@ async def gold_analysis():
             mtf = await _fetch_mtf(tv, GOLD_SYMBOL, exchange=GOLD_EXCHANGE) if has_data else None
             egp = await tv.yahoo_price("EGP=X")
             gc = await tv.yahoo_price("GC=F")
+            dxy = await _yahoo_quote(tv, "DX-Y.NYB")
+            us10y = await _yahoo_quote(tv, "^TNX")
     except Exception as exc:  # noqa: BLE001 — genuine connection failure
         raise HTTPException(status_code=503, detail=f"gold-analysis failed: {exc!r}")
 
@@ -431,6 +444,8 @@ async def gold_analysis():
         "mtf": mtf,
         "usd_egp": _price(egp),
         "gc_usd": _price(gc),
+        "dxy": dxy,
+        "us10y": us10y,
         "timestamp": _now_iso(),
     }
 
