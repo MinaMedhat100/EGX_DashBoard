@@ -86,7 +86,26 @@ export function riskR(p) {
   };
 }
 
-function portfolioPrompt(positions, strategy) {
+// Shared MARKET REGIME lines for the portfolio + opportunity prompts.
+function regimeLines(regime) {
+  if (!regime || regime.stale || !regime.regime) {
+    return ['=== MARKET REGIME ===', 'Unknown (Indices not refreshed recently) — do not assume a regime.', ''];
+  }
+  return [
+    '=== MARKET REGIME ===',
+    `Regime (as of ${regime.as_of}): ${regime.regime} — ${regime.summary}`,
+    'In Risk-Off favor defense / raise the entry bar; in Risk-On you may be more constructive.',
+    '',
+  ];
+}
+
+const priorAiSlim = (ai) => (ai ? {
+  recommendation: ai.recommendation, conviction: ai.conviction, thesis: ai.thesis,
+  key_risk: ai.key_risk, suggested_stop: ai.suggested_stop, suggested_t1: ai.suggested_t1,
+  suggested_t2: ai.suggested_t2, analyzed_at: ai.analyzed_at,
+} : null);
+
+export function portfolioPrompt(positions, strategy, context = {}) {
   const slim = positions.map((p) => ({
     ticker: p.ticker, avg_cost: p.avg_cost, shares: p.shares, live_price: p.live_price,
     stop_loss: p.stop_loss, t1_price: p.t1_price, t2_price: p.t2_price,
@@ -97,6 +116,8 @@ function portfolioPrompt(positions, strategy) {
     mtf: p.mtf ?? null,
     t1_hit: !!p.t1_hit, t2_hit: !!p.t2_hit, stop_raised: !!p.stop_raised,
     t1_fill_price: p.t1_fill_price ?? null, t2_fill_price: p.t2_fill_price ?? null,
+    news: (context.news && context.news[p.ticker]) || [],
+    prior_ai: priorAiSlim(p.ai),
     live: p.indicators || {
       price: p.live_price, adx: p.adx, plus_di: p.plus_di, minus_di: p.minus_di,
       rsi: p.rsi, macd_histogram: p.macd_histogram, ema20: p.ema20, ema50: p.ema50,
@@ -112,6 +133,7 @@ function portfolioPrompt(positions, strategy) {
     '=== CURRENT POSITIONS (live indicators) ===',
     JSON.stringify(slim, null, 1),
     '',
+    ...regimeLines(context.regime),
     'For EACH position output one analysis object. Respond with ONLY this JSON shape:',
     '{"analyses":[{',
     '  "ticker": "CANA",',
@@ -120,7 +142,9 @@ function portfolioPrompt(positions, strategy) {
     '  "thesis": "2-3 sentences citing the ACTUAL indicator values and what the strategy says",',
     '  "key_risk": "one short line",',
     '  "suggested_stop": number, "suggested_t1": number, "suggested_t2": number,',
-    '  "action_line": "short imperative, e.g. \'Switch to limit sell 125sh @ 38.00\'"',
+    '  "action_line": "short imperative, e.g. \'Switch to limit sell 125sh @ 38.00\'",',
+    '  "vs_prior": "unchanged|changed", "change_reason": "short line or empty",',
+    '  "catalyst": "one line on the driving headline from news, or empty"',
     '}]}',
     '',
     'Rules: suggested_stop just below structural support (EMA50 / recent swing / BB lower);',
@@ -148,13 +172,19 @@ function portfolioPrompt(positions, strategy) {
     '  losing position"; otherwise HOLD. If the structure has shifted up, you may raise suggested_t2.',
     '- Set recommendation accordingly (HOLD / ADD / TRIM / EXIT) and reference the T1 fill explicitly',
     '  in the thesis.',
+    '',
+    'NEWS — each position has a news[] array (recent headlines + age). Factor catalysts into the call;',
+    'cite the driving headline in catalyst/thesis when it changes anything. Empty array = no news found.',
+    'REGIME — honor the MARKET REGIME above (defensive in Risk-Off). MEMORY — each position has prior_ai',
+    '(your last read). Set vs_prior "unchanged" if the thesis still holds, else "changed" with a one-line',
+    'change_reason. Only move suggested_* on a real reason — do not churn levels on noise.',
     'Output JSON only.',
   ].join('\n');
 }
 
-export async function analyzePortfolio(positions, model = DEFAULT_MODEL) {
+export async function analyzePortfolio(positions, model = DEFAULT_MODEL, context = {}) {
   const strategy = await strategyText();
-  const text = await runClaude(portfolioPrompt(positions, strategy), model);
+  const text = await runClaude(portfolioPrompt(positions, strategy, context), model);
   const parsed = extractJson(text);
   const arr = Array.isArray(parsed) ? parsed : (parsed.analyses || parsed.positions || []);
   const map = {};
@@ -163,11 +193,12 @@ export async function analyzePortfolio(positions, model = DEFAULT_MODEL) {
 }
 
 // ── opportunity analysis ─────────────────────────────────────────────────────
-export function opportunityPrompt(candidates, market, exclude, strategy, mode = 'market') {
+export function opportunityPrompt(candidates, market, exclude, strategy, mode = 'market', context = {}) {
   const slim = candidates.map((c) => ({
     ticker: c.ticker, sector: c.sector, stock_score: c.stock_score, grade: c.grade,
     trend_state: c.trend_state, signals: c.signals, di_gap: c.di_gap,
     indicators: c.indicators, suggested: c.suggested,
+    news: (context.news && context.news[c.ticker]) || [],
   }));
   const watchlist = mode === 'watchlist';
   const selectLine = watchlist
@@ -184,6 +215,7 @@ export function opportunityPrompt(candidates, market, exclude, strategy, mode = 
     '',
     '=== MARKET CONTEXT ===', JSON.stringify(market || {}, null, 1),
     '',
+    ...regimeLines(context.regime),
     '=== ALREADY HELD (exclude) ===', JSON.stringify(exclude || []),
     '',
     '=== CANDIDATES (with live indicators + baseline levels) ===',
@@ -197,7 +229,8 @@ export function opportunityPrompt(candidates, market, exclude, strategy, mode = 
     '  "entry_zone": [lo, hi], "stop": number, "t1": number, "t2": number,',
     '  "t1_pct": number, "t2_pct": number, "rr": number,',
     '  "weekly_bias": "Bullish|Bearish|Neutral", "wd_aligned": true|false,',
-    '  "thesis": "why this is a strong entry, citing indicators", "conviction": 1-5',
+    '  "thesis": "why this is a strong entry, citing indicators", "conviction": 1-5,',
+    '  "catalyst": "one line on a driving headline, or empty"',
     '}]}',
     '',
     watchlist
@@ -210,6 +243,8 @@ export function opportunityPrompt(candidates, market, exclude, strategy, mode = 
     'is bearish/unaligned even if the daily looks clean. Echo weekly_bias/wd_aligned in output.',
     'If indicators.mtf is null/absent, multi-timeframe data was UNAVAILABLE — set weekly_bias to',
     '"Unknown" and wd_aligned to false. Do NOT invent a bias.',
+    'Each candidate has news[] (headlines+age): down-rank a name on a negative catalyst, note a positive',
+    'one; honor the MARKET REGIME above (raise the entry bar in Risk-Off).',
     'Prefer ADX strong (>40), +DI clearly > -DI, RSI 40-70, MACD bullish, R:R to T2 >= 2 where',
     'possible. Refine the baseline levels to sensible structure-based stops/targets. Output JSON only.',
   ].join('\n');
@@ -222,7 +257,7 @@ export function finalizeOpportunities(arr, mode = 'market') {
 export async function analyzeOpportunities(candidates, market, exclude, model = DEFAULT_MODEL, opts = {}) {
   const mode = opts.mode || 'market';
   const strategy = await strategyText();
-  const text = await runClaude(opportunityPrompt(candidates, market, exclude, strategy, mode), model);
+  const text = await runClaude(opportunityPrompt(candidates, market, exclude, strategy, mode, opts.context || {}), model);
   const parsed = extractJson(text);
   const arr = Array.isArray(parsed) ? parsed : (parsed.opportunities || parsed.picks || []);
   return finalizeOpportunities(arr, mode);
@@ -276,7 +311,7 @@ export async function analyzeIndices(indices, model = DEFAULT_MODEL) {
 }
 
 // ── gold (Goldx) analysis ──────────────────────────────────────────────────────
-export function goldPrompt(snapshot, position, strategy) {
+export function goldPrompt(snapshot, position, strategy, context = {}) {
   const holding = !!position;
   const slim = {
     price_usd_oz: snapshot?.indicators?.price ?? null,
@@ -284,6 +319,10 @@ export function goldPrompt(snapshot, position, strategy) {
     mtf: snapshot?.mtf ?? null,
     usd_egp: snapshot?.usd_egp ?? null,
     gc_usd_oz: snapshot?.gc_usd ?? null,
+    dxy: snapshot?.dxy?.price ?? null,
+    us10y: snapshot?.us10y?.price ?? null,
+    macro_news: context.news || [],
+    prior_ai: priorAiSlim(context.prior_ai),
     position: holding
       ? {
           avg_cost: position.avg_cost, shares_oz: position.shares,
@@ -301,6 +340,7 @@ export function goldPrompt(snapshot, position, strategy) {
     '',
     'GOLD CONTEXT: gold is macro/news-driven — weigh USD/DXY (inverse), real yields, Fed policy,',
     'geopolitics and central-bank buying. There are no earnings or stock-score metrics for gold.',
+    'Use the ACTUAL dxy / us10y prints and macro_news headlines above — not memory. DXY up = gold headwind.',
     'FEES: the trader may execute on Thndr (~2% round-trip commission, EGP/gram) or Binance (~0.2%,',
     'PAXG). Factor these into target selection and say, briefly, whether a target clears the 2% Thndr',
     'round-trip net-positive. Thndr execution windows are 10:00 / 13:00 / 15:00 Cairo.',
@@ -318,6 +358,7 @@ export function goldPrompt(snapshot, position, strategy) {
         '  "suggested_stop": number, "suggested_t1": number, "suggested_t2": number,',
         '  "action_line": "short imperative (venue + level)",',
         '  "net_of_fee": "one line on Thndr 2% vs Binance ~0.2% for the next target",',
+        '  "vs_prior": "unchanged|changed", "change_reason": "short line or empty",',
         '  "weekly_bias": "Bullish|Bearish|Neutral|Unknown", "wd_aligned": true|false',
         '}',
       ]
@@ -331,6 +372,7 @@ export function goldPrompt(snapshot, position, strategy) {
         '  "entry_zone": [lo, hi], "stop": number, "t1": number, "t2": number,',
         '  "t1_pct": number, "t2_pct": number, "rr": number,',
         '  "net_of_fee": "one line on Thndr 2% vs Binance ~0.2% for T1/T2",',
+        '  "vs_prior": "unchanged|changed", "change_reason": "short line or empty",',
         '  "weekly_bias": "Bullish|Bearish|Neutral|Unknown", "wd_aligned": true|false',
         '}',
       ];
@@ -340,6 +382,7 @@ export function goldPrompt(snapshot, position, strategy) {
     '',
     'Numbers in USD/oz rounded to 2 decimals. If mtf is null, set weekly_bias "Unknown" (do NOT invent',
     'a bias). Prefer entries with ADX strong (>40), +DI clearly > -DI, RSI 40-70, and R:R to T2 >= 2.',
+    'MEMORY — prior_ai is your last gold read; set vs_prior unchanged/changed (+reason); move levels only on a real reason.',
     'Output JSON only.',
   ].join('\n');
 }
@@ -348,8 +391,8 @@ export function finalizeGold(parsed) {
   return parsed && !Array.isArray(parsed) && typeof parsed === 'object' ? parsed : {};
 }
 
-export async function analyzeGold(snapshot, position, model = DEFAULT_MODEL) {
+export async function analyzeGold(snapshot, position, model = DEFAULT_MODEL, context = {}) {
   const strategy = await strategyText();
-  const text = await runClaude(goldPrompt(snapshot, position, strategy), model);
+  const text = await runClaude(goldPrompt(snapshot, position, strategy, context), model);
   return finalizeGold(extractJson(text));
 }
