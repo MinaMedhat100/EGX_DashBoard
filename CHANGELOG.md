@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0
+
+**Portfolio-level Book Insights.** The Portfolio tab now has a book-level panel above the positions:
+- **Open risk** (EGP lost if every stop hit), your **largest exposure** (% of book), and any
+  **unprotected** positions (no stop) — computed live from your holdings.
+- An AI **book read** (from Refresh): overall posture, sector concentration, correlated clusters, and
+  the strongest / weakest holding — labeled with its analysis time. The AI infers sectors itself.
+
 ## 1.6.0
 
 **AI now reasons with news, market regime, and memory.**
