@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { api } from '../api/client';
-import type { Position } from '../types/portfolio';
+import type { Position, LevelProposal } from '../types/portfolio';
 
 type Phase = 'idle' | 'refreshing' | 'analyzing';
 
@@ -25,10 +25,12 @@ export function useRefresh(applyPositions: (p: Position[], last?: string) => voi
       // Phase 2 — AI analysis (slower)
       setPhase('analyzing');
       let book_ai = null;
+      let proposals: Record<string, LevelProposal> = {};
       try {
         const a = await api.analyze(model);
         applyPositions(a.positions);
         book_ai = a.book_ai ?? null;
+        proposals = a.proposals ?? {};
       } catch (e) {
         setError(`AI analysis failed: ${(e as Error).message}`);
         setPhase('idle');
@@ -36,7 +38,7 @@ export function useRefresh(applyPositions: (p: Position[], last?: string) => voi
       }
 
       setPhase('idle');
-      return { ok: true, aiOk: true, book_ai };
+      return { ok: true, aiOk: true, book_ai, proposals };
     },
     [applyPositions],
   );

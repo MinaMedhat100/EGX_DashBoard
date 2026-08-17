@@ -27,6 +27,19 @@ export function applyAiLevels(position) {
   return { applied: false, proposal: { stop, t1, t2 } };
 }
 
+// True if any of the proposal's non-null levels differs from the position's
+// stored stop/t1/t2 (compared at 2dp). Used to decide whether a full Refresh
+// should surface an "Apply AI levels" chip — no chip when nothing actually moved.
+export function proposalDiffers(position, proposal) {
+  if (!proposal) return false;
+  const pairs = [
+    [proposal.stop, position.stop_loss],
+    [proposal.t1, position.t1_price],
+    [proposal.t2, position.t2_price],
+  ];
+  return pairs.some(([next, cur]) => next != null && round2(next) !== round2(cur ?? 0));
+}
+
 // User-confirmed levels (confirm chip or manual editor) -> commit + mark manual.
 export function commitLevels(position, levels) {
   const stop = pos(levels.stop);

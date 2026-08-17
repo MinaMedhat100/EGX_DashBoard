@@ -50,7 +50,9 @@ function Shell() {
     const r = await refresh.run();
     if (r.ok && r.aiOk) {
       setData((d) => (d ? { ...d, book_ai: r.book_ai ?? null } : d));
-      toast('Refresh complete', 'success');
+      setProposals(r.proposals ?? {});
+      const n = Object.keys(r.proposals ?? {}).length;
+      toast(n ? `Refresh complete — ${n} position${n > 1 ? 's have' : ' has'} updated AI levels to review` : 'Refresh complete', 'success');
     } else if (r.ok) toast('Prices updated — AI analysis failed', 'error');
     else toast('Refresh failed — is the backend running?', 'error');
   };

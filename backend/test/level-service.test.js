@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyAiLevels, commitLevels, recomputeDerived } from '../services/levelService.js';
+import { applyAiLevels, commitLevels, recomputeDerived, proposalDiffers } from '../services/levelService.js';
 
 test('applyAiLevels adopts AI levels for a pending position', () => {
   const pos = { levels_source: 'pending', stop_loss: 0, t1_price: 0, t2_price: 0,
@@ -39,6 +39,16 @@ test('recomputeDerived computes P&L and status from indicators', () => {
   assert.equal(pos.unrealized_pnl, 100);
   assert.equal(pos.unrealized_pct, 8.33);
   assert.equal(pos.status_key, 'yellow'); // ADX>=40, +DI>-DI, not near T1
+});
+
+test('proposalDiffers: true when a suggested level moves, false when all match/absent', () => {
+  const pos = { stop_loss: 296.5, t1_price: 347, t2_price: 369.2 };
+  assert.equal(proposalDiffers(pos, { stop: 308, t1: 337, t2: 369.2 }), true); // stop + t1 moved
+  assert.equal(proposalDiffers(pos, { stop: 296.5, t1: 347, t2: 369.2 }), false); // all equal
+  assert.equal(proposalDiffers(pos, { stop: null, t1: null, t2: null }), false); // nothing proposed
+  assert.equal(proposalDiffers(pos, { stop: 296.5, t1: null, t2: 369.2 }), false); // unchanged + nulls
+  assert.equal(proposalDiffers(pos, { stop: 296.5, t1: 347.004, t2: 369.2 }), false); // within 2dp rounding
+  assert.equal(proposalDiffers(pos, null), false); // no proposal object
 });
 
 test('applyAiLevels leaves position pending when AI returns no stop', () => {

@@ -8,6 +8,7 @@ import type {
   ScanRun,
   ScanRunSummary,
   RefreshAiResult,
+  LevelProposal,
   ScanResponse,
   ScanParamsDto,
   IndexSnapshot,
@@ -45,10 +46,14 @@ export const api = {
     }),
 
   analyze: (model?: string) =>
-    req<{ ok: boolean; model: string; analyzed_at: string; positions: Position[]; book_ai?: BookAi | null }>(
-      '/analyze',
-      { method: 'POST', body: JSON.stringify({ model }) },
-    ),
+    req<{
+      ok: boolean;
+      model: string;
+      analyzed_at: string;
+      positions: Position[];
+      book_ai?: BookAi | null;
+      proposals?: Record<string, LevelProposal>;
+    }>('/analyze', { method: 'POST', body: JSON.stringify({ model }) }),
 
   scan: (params: ScanParamsDto) =>
     req<ScanResponse>('/scan-opportunities', { method: 'POST', body: JSON.stringify(params) }),

@@ -29,6 +29,13 @@ test('opportunityPrompt injects candidate news + regime', () => {
   assert.match(p, /Risk-Off/);
 });
 
+test('portfolioPrompt requires the thesis to cite the SUGGESTED (not stored) levels', () => {
+  const positions = [{ ticker: 'X', avg_cost: 1, shares: 1, live_price: 1 }];
+  const p = portfolioPrompt(positions, 'S', {});
+  assert.match(p, /LEVEL CONSISTENCY/);
+  assert.match(p, /levels you are SUGGESTING/);
+});
+
 test('portfolioPrompt includes BOOK STATS + book schema when book_stats given', () => {
   const positions = [{ ticker: 'A', avg_cost: 10, shares: 100, live_price: 11 }];
   const p = portfolioPrompt(positions, 'S', { book_stats: { open_risk_egp: 100, unprotected: ['C'] } });

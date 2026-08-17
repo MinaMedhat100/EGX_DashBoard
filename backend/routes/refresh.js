@@ -5,6 +5,7 @@ import { load, save, liquidTickers } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
 import { evaluateStatus, buildAlert } from '../services/statusEngine.js';
 import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
+import { applyAiLevels, recomputeDerived, proposalDiffers } from '../services/levelService.js';
 import { gatherNews, latestRegime } from '../services/aiContext.js';
 import { portfolioStats } from '../services/portfolioStats.js';
 
@@ -76,12 +77,19 @@ router.post('/analyze', async (req, res, next) => {
     const [news, regime] = await Promise.all([gatherNews(tickers), latestRegime()]);
     const { analyses, book } = await analyzePortfolio(data.positions, model, { news, regime, book_stats: stats });
     const analyzed_at = new Date().toISOString();
+    // New (pending) positions adopt the AI's levels; existing ones surface a proposal
+    // to Apply — but only when a level actually moved (no chip on unchanged levels).
+    const proposals = {};
     for (const p of data.positions) {
-      if (analyses[p.ticker]) p.ai = { ...analyses[p.ticker], model, analyzed_at };
+      if (!analyses[p.ticker]) continue;
+      p.ai = { ...analyses[p.ticker], model, analyzed_at };
+      const result = applyAiLevels(p);
+      if (result.applied) recomputeDerived(p);
+      else if (result.proposal && proposalDiffers(p, result.proposal)) proposals[p.ticker] = result.proposal;
     }
     if (book) data.book_ai = { ...book, analyzed_at, model };
     await save(data);
-    res.json({ ok: true, model, analyzed_at, positions: data.positions, book_ai: data.book_ai ?? null });
+    res.json({ ok: true, model, analyzed_at, positions: data.positions, book_ai: data.book_ai ?? null, proposals });
   } catch (e) { next(e); }
 });
 

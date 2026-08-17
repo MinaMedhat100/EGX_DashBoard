@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.1
+
+**Fixed AI level confusion on Refresh.** Two issues where the position card showed disagreeing numbers
+after a portfolio Refresh:
+- **Narrative vs. suggestion.** The AI thesis could cite the *old* stored target (e.g. "T1 347 is 6.4%
+  away") while its suggested-levels row proposed a *different* one (T1 337). The portfolio prompt now
+  requires the thesis / action-line to reference the levels the AI is **suggesting** and to state any
+  level move explicitly — no more narrating a target it isn't proposing.
+- **No way to adopt new levels.** A full Refresh surfaced new AI-suggested levels but never offered the
+  **Apply** chip (only the per-position refresh did), so the price bar stayed on the old levels with no
+  one-click way to update. Refresh now surfaces the same "Apply AI levels?" chip whenever a level
+  actually moved, so the price bar reconciles in one click.
+
 ## 1.7.0
 
 **Portfolio-level Book Insights.** The Portfolio tab now has a book-level panel above the positions:
