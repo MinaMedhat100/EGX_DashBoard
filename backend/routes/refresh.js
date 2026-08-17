@@ -6,6 +6,7 @@ import { bridge } from '../services/bridgeClient.js';
 import { evaluateStatus, buildAlert } from '../services/statusEngine.js';
 import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
 import { gatherNews, latestRegime } from '../services/aiContext.js';
+import { portfolioStats } from '../services/portfolioStats.js';
 
 const router = Router();
 
@@ -71,14 +72,16 @@ router.post('/analyze', async (req, res, next) => {
     const model = req.body?.model || DEFAULT_MODEL;
     const data = await load();
     const tickers = data.positions.filter((p) => p.is_liquid).map((p) => p.ticker);
+    const stats = portfolioStats(data.positions);
     const [news, regime] = await Promise.all([gatherNews(tickers), latestRegime()]);
-    const aiMap = await analyzePortfolio(data.positions, model, { news, regime });
+    const { analyses, book } = await analyzePortfolio(data.positions, model, { news, regime, book_stats: stats });
     const analyzed_at = new Date().toISOString();
     for (const p of data.positions) {
-      if (aiMap[p.ticker]) p.ai = { ...aiMap[p.ticker], model, analyzed_at };
+      if (analyses[p.ticker]) p.ai = { ...analyses[p.ticker], model, analyzed_at };
     }
+    if (book) data.book_ai = { ...book, analyzed_at, model };
     await save(data);
-    res.json({ ok: true, model, analyzed_at, positions: data.positions });
+    res.json({ ok: true, model, analyzed_at, positions: data.positions, book_ai: data.book_ai ?? null });
   } catch (e) { next(e); }
 });
 

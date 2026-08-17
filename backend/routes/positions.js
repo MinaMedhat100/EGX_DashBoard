@@ -32,9 +32,9 @@ router.post('/positions/:ticker/refresh-ai', async (req, res, next) => {
     let result = { applied: false };
     try {
       const [news, regime] = await Promise.all([gatherNews([ticker]), latestRegime()]);
-      const aiMap = await analyzePortfolio([posn], model, { news, regime });
-      if (aiMap[ticker]) {
-        posn.ai = { ...aiMap[ticker], model, analyzed_at: new Date().toISOString() };
+      const { analyses } = await analyzePortfolio([posn], model, { news, regime });
+      if (analyses[ticker]) {
+        posn.ai = { ...analyses[ticker], model, analyzed_at: new Date().toISOString() };
         result = applyAiLevels(posn);
         recomputeDerived(posn);
       } else {
