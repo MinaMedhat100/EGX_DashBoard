@@ -29,6 +29,14 @@ test('opportunityPrompt injects candidate news + regime', () => {
   assert.match(p, /Risk-Off/);
 });
 
+test('portfolioPrompt includes BOOK STATS + book schema when book_stats given', () => {
+  const positions = [{ ticker: 'A', avg_cost: 10, shares: 100, live_price: 11 }];
+  const p = portfolioPrompt(positions, 'S', { book_stats: { open_risk_egp: 100, unprotected: ['C'] } });
+  assert.match(p, /BOOK STATS/);
+  assert.match(p, /open_risk_egp/);
+  assert.match(p, /"book"/);
+});
+
 test('goldPrompt injects dxy/us10y + macro news + prior_ai', () => {
   const snap = { indicators: { price: 3400 }, mtf: null, usd_egp: 50, gc_usd: 3402, dxy: { price: 99.6 }, us10y: { price: 4.7 } };
   const p = goldPrompt(snap, null, 'S', { news: [{ headline: 'Fed holds', age: '1h' }], prior_ai: { recommendation: 'WAIT', thesis: 'prior gold' } });

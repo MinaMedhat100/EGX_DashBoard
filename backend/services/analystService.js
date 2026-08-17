@@ -133,6 +133,9 @@ export function portfolioPrompt(positions, strategy, context = {}) {
     '=== CURRENT POSITIONS (live indicators) ===',
     JSON.stringify(slim, null, 1),
     '',
+    ...(context.book_stats
+      ? ['=== BOOK STATS (deterministic — cite these numbers) ===', JSON.stringify(context.book_stats), '']
+      : []),
     ...regimeLines(context.regime),
     'For EACH position output one analysis object. Respond with ONLY this JSON shape:',
     '{"analyses":[{',
@@ -145,7 +148,16 @@ export function portfolioPrompt(positions, strategy, context = {}) {
     '  "action_line": "short imperative, e.g. \'Switch to limit sell 125sh @ 38.00\'",',
     '  "vs_prior": "unchanged|changed", "change_reason": "short line or empty",',
     '  "catalyst": "one line on the driving headline from news, or empty"',
-    '}]}',
+    '}],',
+    '  "book": {',
+    '    "posture": "overall book stance given regime + open risk + holdings, one line",',
+    '    "concentration": "AI-inferred sector read, e.g. 55% real-estate (TMGH/OCDI/CLHO) heavy",',
+    '    "clusters": ["names that move together, e.g. TMGH+OCDI EGX real-estate beta"],',
+    '    "strongest": {"ticker": "X", "why": "one line"},',
+    '    "weakest": {"ticker": "Y", "why": "one line"},',
+    '    "risk_note": "one line on open_risk_egp + any unprotected names"',
+    '  }',
+    '}',
     '',
     'Rules: suggested_stop just below structural support (EMA50 / recent swing / BB lower);',
     'suggested_t1 near the nearest resistance or BB upper; suggested_t2 the next resistance.',
@@ -178,6 +190,8 @@ export function portfolioPrompt(positions, strategy, context = {}) {
     'REGIME — honor the MARKET REGIME above (defensive in Risk-Off). MEMORY — each position has prior_ai',
     '(your last read). Set vs_prior "unchanged" if the thesis still holds, else "changed" with a one-line',
     'change_reason. Only move suggested_* on a real reason — do not churn levels on noise.',
+    'BOOK — if book_stats is provided and there are >=2 positions, fill the book object (cite',
+    'open_risk_egp and any unprotected names; infer each holding\'s EGX sector yourself). Else book: null.',
     'Output JSON only.',
   ].join('\n');
 }
@@ -189,7 +203,8 @@ export async function analyzePortfolio(positions, model = DEFAULT_MODEL, context
   const arr = Array.isArray(parsed) ? parsed : (parsed.analyses || parsed.positions || []);
   const map = {};
   for (const a of arr) if (a && a.ticker) map[a.ticker] = a;
-  return map;
+  const book = Array.isArray(parsed) ? null : (parsed.book ?? null);
+  return { analyses: map, book };
 }
 
 // ── opportunity analysis ─────────────────────────────────────────────────────
