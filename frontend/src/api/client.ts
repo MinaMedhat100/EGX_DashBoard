@@ -1,5 +1,6 @@
 import type {
   PortfolioData,
+  BookAi,
   Position,
   Opportunity,
   MarketOverview,
@@ -44,7 +45,7 @@ export const api = {
     }),
 
   analyze: (model?: string) =>
-    req<{ ok: boolean; model: string; analyzed_at: string; positions: Position[] }>(
+    req<{ ok: boolean; model: string; analyzed_at: string; positions: Position[]; book_ai?: BookAi | null }>(
       '/analyze',
       { method: 'POST', body: JSON.stringify({ model }) },
     ),

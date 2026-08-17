@@ -2,6 +2,7 @@ import type { PortfolioData, LevelProposal } from '../types/portfolio';
 import { PortfolioSummary } from '../components/portfolio/PortfolioSummary';
 import { AlertBanner } from '../components/portfolio/AlertBanner';
 import { PositionCard } from '../components/portfolio/PositionCard';
+import { BookInsights } from '../components/portfolio/BookInsights';
 
 export function PortfolioPage({
   data,
@@ -31,6 +32,7 @@ export function PortfolioPage({
   return (
     <div className="space-y-5">
       <PortfolioSummary data={data} />
+      <BookInsights data={data} />
       <AlertBanner positions={data.positions} />
       {staleTicker && (
         <div className="flex items-center justify-between gap-3 text-sm rounded-lg px-3 py-2 bg-accent-cyan/10 border border-accent-cyan/30">

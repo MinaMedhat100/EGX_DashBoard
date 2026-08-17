@@ -48,8 +48,10 @@ function Shell() {
 
   const doRefresh = async () => {
     const r = await refresh.run();
-    if (r.ok && r.aiOk) toast('Refresh complete', 'success');
-    else if (r.ok) toast('Prices updated — AI analysis failed', 'error');
+    if (r.ok && r.aiOk) {
+      setData((d) => (d ? { ...d, book_ai: r.book_ai ?? null } : d));
+      toast('Refresh complete', 'success');
+    } else if (r.ok) toast('Prices updated — AI analysis failed', 'error');
     else toast('Refresh failed — is the backend running?', 'error');
   };
 

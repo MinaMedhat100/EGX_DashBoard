@@ -119,8 +119,20 @@ export interface ExitedPosition {
   approximate?: boolean;
 }
 
+export interface BookAi {
+  posture?: string;
+  concentration?: string;
+  clusters?: string[];
+  strongest?: { ticker: string; why: string };
+  weakest?: { ticker: string; why: string };
+  risk_note?: string;
+  analyzed_at?: string;
+  model?: string;
+}
+
 export interface PortfolioData {
   positions: Position[];
+  book_ai?: BookAi | null;
   realized_pnl: number;
   last_refresh: string | null;
   deadline_positions: string[];
