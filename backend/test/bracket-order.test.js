@@ -63,3 +63,25 @@ test('bracket SELL with invalid lot id throws and does not mutate the position',
   assert.equal(p.shares, 15);
   assert.deepEqual(p, before);
 });
+
+test('bracket SELL Lot A with raise_stop_be raises Lot B stop to break-even', () => {
+  const data = emptyData();
+  applyOrder(data, { type: 'BUY_NEW', mode: 'bracket', ticker: 'WKOL', shares: 15, price: 328, split: 50, stop_loss: 296.5, t1_price: 347, t2_price: 369.2, date: 'd' });
+  applyOrder(data, { type: 'SELL', ticker: 'WKOL', lot: 'A', price: 347, raise_stop_be: true, date: 'd2' });
+  const p = data.positions[0];
+  const b = p.brackets.lots.find((l) => l.id === 'B');
+  assert.equal(b.stop, 328);
+  assert.equal(b.stop_raised, true);
+  assert.equal(p.stop_loss, 328);
+});
+
+test('bracket SELL Lot A without raise_stop_be leaves Lot B stop and emits advisory', () => {
+  const data = emptyData();
+  applyOrder(data, { type: 'BUY_NEW', mode: 'bracket', ticker: 'WKOL', shares: 15, price: 328, split: 50, stop_loss: 296.5, t1_price: 347, t2_price: 369.2, date: 'd' });
+  const t = applyOrder(data, { type: 'SELL', ticker: 'WKOL', lot: 'A', price: 347, raise_stop_be: false, date: 'd2' });
+  const p = data.positions[0];
+  const b = p.brackets.lots.find((l) => l.id === 'B');
+  assert.equal(b.stop, 296.5);
+  assert.equal(b.stop_raised, false);
+  assert.ok(/Raise Lot B stop/.test(t.toasts.join(' ')));
+});

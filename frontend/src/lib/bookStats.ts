@@ -23,8 +23,19 @@ export function bookStats(positions: Position[]): BookStats {
     invested += exposure;
     unrealized += p.unrealized_pnl ?? 0;
     if (p.is_liquid) {
-      if (p.stop_loss > 0) open_risk_egp += Math.max(0, p.avg_cost - p.stop_loss) * p.shares;
-      else unprotected.push(p.ticker);
+      if (p.brackets) {
+        const open = p.brackets.lots.filter((l) => !l.tp_hit && !l.stopped);
+        let anyUnprotected = false;
+        for (const l of open) {
+          if (l.stop > 0) open_risk_egp += Math.max(0, p.avg_cost - l.stop) * l.shares;
+          else anyUnprotected = true;
+        }
+        if (anyUnprotected) unprotected.push(p.ticker);
+      } else if (p.stop_loss > 0) {
+        open_risk_egp += Math.max(0, p.avg_cost - p.stop_loss) * p.shares;
+      } else {
+        unprotected.push(p.ticker);
+      }
     }
     if (!largest || exposure > largest.exposure) largest = { ticker: p.ticker, exposure };
   }

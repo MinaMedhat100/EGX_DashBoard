@@ -1,7 +1,7 @@
 // orderService.js — order-trigger logging with FIFO cost basis.
 // Mutates the portfolio data object in place (caller persists). Per prompt.md Step 6.
 import { v4 as uuid } from 'uuid';
-import { makeBracket, syncBracketSummary, settleLot, isFullyExited, openLots } from './bracketService.js';
+import { makeBracket, syncBracketSummary, settleLot, isFullyExited, openLots, raiseLotStop } from './bracketService.js';
 
 const ILLIQUID = new Set(['EGX30ETF', 'BAL', 'CCB']);
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -161,9 +161,16 @@ export function applyOrder(data, order) {
       data.positions.splice(idx, 1);
       toasts.push(`${ticker} fully exited`);
     } else {
+      const a = pos.brackets.lots.find((l) => l.id === 'A');
       const b = pos.brackets.lots.find((l) => l.id === 'B');
-      if (kind === 'tp' && b && !b.stop_raised && pos.avg_cost > 0 && b.stop < pos.avg_cost) {
-        toasts.push(`Raise Lot B stop ${b.stop} → ${pos.avg_cost} (break-even) in ThndrX`);
+      const bankedA = ids.includes('A') && kind === 'tp' && a && a.tp_hit;
+      if (bankedA && b && !b.tp_hit && !b.stopped && !b.stop_raised && pos.avg_cost > 0 && b.stop < pos.avg_cost) {
+        if (order.raise_stop_be) {
+          raiseLotStop(pos, 'B', pos.avg_cost);
+          toasts.push(`Lot B stop raised to break-even ${pos.avg_cost}`);
+        } else {
+          toasts.push(`Raise Lot B stop ${b.stop} → ${pos.avg_cost} (break-even) in ThndrX`);
+        }
       }
       pos.position_label = `${pos.shares}sh runner — Lot ${ids.join('/')} ${kind === 'tp' ? 'banked' : 'stopped'} @ ${price}`;
       recompute(pos);

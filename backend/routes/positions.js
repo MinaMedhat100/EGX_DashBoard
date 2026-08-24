@@ -57,6 +57,7 @@ router.post('/positions/:ticker/apply-levels', async (req, res, next) => {
     const data = await load();
     const posn = getPosition(data, ticker);
     if (!posn) return res.status(404).json({ ok: false, error: `position ${ticker} not found` });
+    if (posn.brackets) return res.status(400).json({ ok: false, error: 'cannot apply classic levels to a bracket position' });
     commitLevels(posn, { stop, t1, t2 });
     recomputeDerived(posn);
     await save(data);
