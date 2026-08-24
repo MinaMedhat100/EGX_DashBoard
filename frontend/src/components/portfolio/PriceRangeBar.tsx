@@ -29,6 +29,24 @@ function assignLanes(markers: Marker[], pct: (v: number) => number): Map<string,
 }
 
 export function PriceRangeBar({ p }: { p: Position }) {
+  if (p.brackets) {
+    return (
+      <div className="mt-2 space-y-1.5">
+        {p.brackets.lots.map((l) => {
+          const state = l.tp_hit ? `${l.target} ✓` : l.stopped ? 'stopped' : 'resting';
+          const color = l.tp_hit ? '#22c55e' : l.stopped ? '#ef4444' : '#f97316';
+          return (
+            <div key={l.id} className="flex items-center justify-between text-[11px] font-mono rounded-lg bg-white/5 border border-white/10 px-2 py-1">
+              <span className="font-semibold">Lot {l.id}</span>
+              <span className="text-txt-secondary">{l.shares}sh · stop {fmtNum(l.stop)} · TP {fmtNum(l.tp_price)}</span>
+              <span style={{ color }}>{state}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   const { stop_loss: stop, avg_cost: avg, live_price: live, t1_price: t1, t2_price: t2 } = p;
   const vals = [stop, avg, live, t1, t2].filter((v) => v > 0);
   if (vals.length < 2 || !live || live <= 0) return null;
