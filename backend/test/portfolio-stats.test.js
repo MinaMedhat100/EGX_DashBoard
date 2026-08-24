@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { portfolioStats } from '../services/portfolioStats.js';
+import { makeBracket, syncBracketSummary, settleLot, raiseLotStop } from '../services/bracketService.js';
 
 test('portfolioStats aggregates open risk, unprotected, largest', () => {
   const s = portfolioStats([
@@ -24,4 +25,13 @@ test('portfolioStats handles empty book', () => {
   assert.deepEqual(s.unprotected, []);
   assert.equal(s.largest, null);
   assert.equal(s.count, 0);
+});
+
+test('open risk sums per-lot once Lot B stop is raised to break-even', () => {
+  const pos = { ticker: 'WKOL', avg_cost: 328, is_liquid: true, unrealized_pnl: 0, brackets: makeBracket(328, 15, 50, 296.5, 347, 369.2) };
+  settleLot(pos, 'A', { kind: 'tp', price: 347, date: 'd' }, 328); // Lot A gone
+  raiseLotStop(pos, 'B', 328);                                     // Lot B at break-even
+  const s = portfolioStats([pos]);
+  assert.equal(s.open_risk_egp, 0); // (328-328)*7
+  assert.deepEqual(s.unprotected, []);
 });
