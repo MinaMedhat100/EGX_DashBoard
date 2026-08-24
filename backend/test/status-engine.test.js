@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { classifyPosition, evaluateStatus, buildAlert } from '../services/statusEngine.js';
+import { makeBracket, syncBracketSummary, settleLot, raiseLotStop } from '../services/bracketService.js';
 
 // Defaults: flat position, strong trend, price between avg and T1.
 const P = (o = {}) => ({
@@ -142,4 +143,31 @@ test('buildAlert always carries an EXIT action on stop breach even with missing 
   const a = buildAlert(p, live, evaluateStatus(p, live), null);
   assert.ok(a.flags.includes('STOP_BREACH'));
   assert.equal(a.thndr_action, 'EXIT — stop breached');
+});
+
+// ── bracket-aware classifyPosition ──────────────────────────────────────────
+const LIVE = { adx: 50, plus_di: 29, minus_di: 9, price: 326, mtf: { higher_tf_bullish: true } };
+
+test('bracket: both lots resting -> yellow, no-action copy', () => {
+  const pos = { avg_cost: 328, brackets: makeBracket(328, 15, 50, 296.5, 347, 369.2) };
+  syncBracketSummary(pos);
+  const c = classifyPosition(pos, LIVE);
+  assert.equal(c.status, 'yellow');
+  assert.match(c.action, /brackets resting/i);
+});
+
+test('bracket: Lot A filled + Lot B stop not raised -> break-even nudge', () => {
+  const pos = { avg_cost: 328, brackets: makeBracket(328, 15, 50, 296.5, 347, 369.2) };
+  settleLot(pos, 'A', { kind: 'tp', price: 347, date: 'd' }, 328);
+  const c = classifyPosition(pos, LIVE);
+  assert.match(c.action, /Raise Lot B stop/i);
+  assert.match(c.action, /328/);
+});
+
+test('bracket: open lot below its stop -> red', () => {
+  const pos = { avg_cost: 328, brackets: makeBracket(328, 15, 50, 330, 347, 369.2) }; // stop above live
+  syncBracketSummary(pos);
+  const c = classifyPosition(pos, LIVE);
+  assert.equal(c.status, 'red');
+  assert.match(c.action, /confirm it fired/i);
 });

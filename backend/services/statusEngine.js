@@ -23,10 +23,43 @@ function runnerHold(position, adx, stop) {
   return { status: 'yellow', action: stop > 0 ? `Hold runner toward T2 — keep stop @ ${stop}` : 'Hold runner' };
 }
 
+// classifyBracketPosition — two-lot ThndrX bracket branch. See bracketService.js for lot shape.
+function classifyBracketPosition(position, live) {
+  const { price } = live;
+  const lots = position.brackets.lots;
+  const open = lots.filter((l) => !l.tp_hit && !l.stopped);
+  if (!open.length) return { status: 'green', action: 'All lots closed' };
+
+  const breached = open.filter((l) => l.stop > 0 && price < l.stop);
+  if (breached.length) {
+    return { status: 'red', action: `Price below ${breached.map((l) => 'Lot ' + l.id).join(' & ')} stop — confirm it fired in ThndrX` };
+  }
+
+  const a = lots.find((l) => l.id === 'A');
+  const b = lots.find((l) => l.id === 'B');
+  const pctTo = (x) => ((x - price) / price) * 100;
+
+  if (open.some((l) => l.id === 'A')) {
+    if (price >= a.tp_price) return { status: 'green', action: `Lot A TP @ ${a.tp_price} filling — banks T1` };
+    if (pctTo(a.tp_price) <= 2) return { status: 'green', action: `Lot A TP @ ${a.tp_price} resting — fills automatically` };
+    return { status: 'yellow', action: 'Both ThndrX brackets resting — no action' };
+  }
+  if (open.some((l) => l.id === 'B')) {
+    if (!b.stop_raised && position.avg_cost > 0 && b.stop < position.avg_cost) {
+      return { status: 'yellow', action: `Lot A banked. Raise Lot B stop ${b.stop} → ${position.avg_cost} (break-even) in ThndrX` };
+    }
+    if (price >= b.tp_price) return { status: 'green', action: `Lot B TP @ ${b.tp_price} filling — banks T2` };
+    if (pctTo(b.tp_price) <= 2) return { status: 'green', action: `Lot B TP @ ${b.tp_price} resting — fills automatically` };
+    return { status: 'yellow', action: `Runner: Lot B TP @ ${b.tp_price} resting, stop @ ${b.stop}` };
+  }
+  return { status: 'yellow', action: 'Brackets resting' };
+}
+
 // classifyPosition -> {status, action} | null (null when live momentum data is insufficient).
 export function classifyPosition(position, live) {
   const { adx, plus_di, minus_di, price } = live;
   if ([adx, plus_di, minus_di, price].some((v) => v == null)) return null;
+  if (position.brackets) return classifyBracketPosition(position, live);
 
   const diGap = plus_di - minus_di;
   const stop = position.stop_loss;
