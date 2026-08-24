@@ -144,6 +144,7 @@ export function applyOrder(data, order) {
     if (!price) throw httpErr(400, 'price required');
     const kind = type === 'STOP_OUT' ? 'stop' : 'tp';
     const wanted = (order.lot || (type === 'SELL' ? 'A' : 'ALL')).toUpperCase();
+    if (wanted !== 'A' && wanted !== 'B' && wanted !== 'ALL') throw httpErr(400, 'lot must be A, B, or ALL');
     const ids = wanted === 'ALL' ? openLots(pos.brackets).map((l) => l.id) : [wanted];
     if (!ids.length) throw httpErr(400, 'no open lots to settle');
     for (const id of ids) {

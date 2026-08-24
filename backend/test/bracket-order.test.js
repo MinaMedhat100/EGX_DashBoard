@@ -50,3 +50,16 @@ test('bracket STOP lot=ALL fully exits and appends exited_positions', () => {
   assert.equal(data.exited_positions[0].ticker, 'WKOL');
   assert.equal(data.exited_positions[0].exit_type, 'STOP-OUT');
 });
+
+test('bracket SELL with invalid lot id throws and does not mutate the position', () => {
+  const data = emptyData();
+  applyOrder(data, { type: 'BUY_NEW', mode: 'bracket', ticker: 'WKOL', shares: 15, price: 328, split: 50, stop_loss: 296.5, t1_price: 347, t2_price: 369.2, date: 'd' });
+  const before = JSON.parse(JSON.stringify(data.positions[0]));
+  assert.throws(
+    () => applyOrder(data, { type: 'SELL', ticker: 'WKOL', lot: 'Z', price: 347, date: 'd' }),
+    /lot must be A, B, or ALL/
+  );
+  const p = data.positions[0];
+  assert.equal(p.shares, 15);
+  assert.deepEqual(p, before);
+});
