@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import type { Opportunity } from '../../types/portfolio';
 import { GlowCard } from '../common/GlowCard';
 import { MtfBadge } from '../common/MtfBadge';
 import { fmtNum, fmtPct } from '../../lib/format';
 import { rMultiple, fmtR } from '../../lib/risk';
+import { bracketPlan } from '../../lib/brackets';
 
 function Lvl({ label, value, color }: { label: string; value: string; color: string }) {
   return (
@@ -20,6 +22,8 @@ const d1 = (n?: number) => (n == null ? '—' : n.toFixed(1));
 export function OpportunityCard({ o }: { o: Opportunity }) {
   const score = o.score ?? 0;
   const scoreColor = score >= 70 ? '#22c55e' : score >= 50 ? '#eab308' : '#94a3b8';
+  const [splitOverride, setSplitOverride] = useState<number | null>(null);
+  const bp = bracketPlan(o, splitOverride ?? undefined);
 
   return (
     <GlowCard hover className="p-4">
@@ -87,6 +91,35 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
           </div>
         );
       })()}
+
+      {bp.lot_a.tp != null && bp.lot_b.tp != null && (
+        <div className="mt-3 border-t border-white/10 pt-2 text-[11px]">
+          <div className="flex items-center justify-between">
+            <span className="text-txt-secondary">ThndrX bracket · split</span>
+            <span className="font-mono">
+              {bp.split[0]}/{bp.split[1]}
+            </span>
+          </div>
+          {bp.split_reason && <div className="text-txt-secondary/80 italic">{bp.split_reason}</div>}
+          <div className="mt-1 grid grid-cols-2 gap-2 font-mono">
+            <div className="rounded bg-white/5 px-2 py-1">
+              Lot A {bp.lot_a.pct}% → TP {fmtNum(bp.lot_a.tp)} · R {fmtR(bp.rr_a)}
+            </div>
+            <div className="rounded bg-white/5 px-2 py-1">
+              Lot B {bp.lot_b.pct}% → TP {fmtNum(bp.lot_b.tp)} · R {fmtR(bp.rr_b)}
+            </div>
+          </div>
+          <input
+            type="range"
+            min={20}
+            max={80}
+            step={5}
+            value={bp.split[0]}
+            onChange={(e) => setSplitOverride(Number(e.target.value))}
+            className="w-full mt-1 accent-accent-purple"
+          />
+        </div>
+      )}
 
       {o.thesis && (
         <p className="mt-3 text-xs text-txt-primary/85 leading-snug border-t border-white/10 pt-2">
