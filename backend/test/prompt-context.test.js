@@ -51,3 +51,17 @@ test('goldPrompt injects dxy/us10y + macro news + prior_ai', () => {
   assert.match(p, /99.6/);
   assert.match(p, /prior gold/);
 });
+
+test('portfolioPrompt includes bracket lots + BRACKET rule for a bracketed position', () => {
+  const positions = [{
+    ticker: 'WKOL', avg_cost: 328, shares: 7, live_price: 326, stop_loss: 296.5, t1_price: 347, t2_price: 369.2,
+    brackets: { entry_price: 328, lots: [
+      { id: 'A', target: 'T1', shares: 8, tp_price: 347, stop: 296.5, tp_hit: true, stopped: false, stop_raised: false, exit_price: 347, exit_date: 'd' },
+      { id: 'B', target: 'T2', shares: 7, tp_price: 369.2, stop: 296.5, tp_hit: false, stopped: false, stop_raised: false, exit_price: null, exit_date: null },
+    ] },
+  }];
+  const p = portfolioPrompt(positions, 'S', {});
+  assert.match(p, /"brackets"/);
+  assert.match(p, /BRACKET/);
+  assert.match(p, /runner lot/i);
+});
