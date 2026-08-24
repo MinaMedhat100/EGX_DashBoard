@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.0.0
+
+**ThndrX two-lot brackets.** A single EGX entry can now be placed and tracked as two
+self-managing ThndrX brackets — Lot A (take-profit at T1) and Lot B (take-profit at T2), each
+stop-protected — so the two-target plan runs itself. Retires the manual "switch the stop into a
+limit-sell at T1" dance.
+
+- **Bracket entry** — the order modal gains a *Classic / ThndrX bracket* toggle: enter total shares,
+  a split (default 50/50, overridable), a shared stop, T1 and T2. Odd totals give Lot A the extra share.
+- **Self-managing tracking** — each lot has its own stop and take-profit and its own fill state. Logging
+  a fill is lot-aware (Lot A / Lot B / all-remaining); ThndrX's OCO is mirrored (a filled take-profit
+  retires that lot's stop). Once Lot A fills, the card's guided action becomes **"raise Lot B stop to
+  break-even"** instead of a manual order switch.
+- **Bracket-aware everywhere** — the position card shows the two brackets and per-lot state; open-risk
+  (Book Insights) sums per open lot, staying correct once Lot B's stop is raised; the status engine and
+  AI narrative reason per-lot.
+- **AI-recommended split on opportunities** — every opportunity and watchlist result leads with the AI's
+  best split for that stock (weighted by conviction / trend strength / room to T2), shown with a reason
+  and a per-lot R:R, and overridable inline.
+
+Classic single-target positions are unchanged — bracket mode is opt-in per entry, and existing positions
+stay classic.
+
 ## 1.7.1
 
 **Fixed AI level confusion on Refresh.** Two issues where the position card showed disagreeing numbers
