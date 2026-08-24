@@ -37,6 +37,20 @@ export interface AiAnalysis {
   catalyst?: string;
 }
 
+export interface Lot {
+  id: 'A' | 'B';
+  target: 'T1' | 'T2';
+  shares: number;
+  tp_price: number;
+  stop: number;
+  tp_hit: boolean;
+  stopped: boolean;
+  stop_raised: boolean;
+  exit_price: number | null;
+  exit_date: string | null;
+}
+export interface Brackets { entry_price: number; lots: Lot[]; }
+
 export interface Position {
   ticker: string;
   avg_cost: number;
@@ -77,6 +91,7 @@ export interface Position {
   ai: AiAnalysis | null;
   mtf?: Mtf | null;
   indicators?: Record<string, unknown>;
+  brackets?: Brackets | null;
 }
 
 export interface LevelProposal {
@@ -164,6 +179,8 @@ export interface Opportunity {
   wd_aligned?: boolean;
   mtf?: Mtf | null;
   passes_filter?: boolean;
+  split?: [number, number];
+  split_reason?: string;
 }
 
 export interface MarketOverview {
