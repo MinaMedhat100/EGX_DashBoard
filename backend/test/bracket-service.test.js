@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  makeBracket, syncBracketSummary, bracketRealized, openLots, isFullyExited, raiseLotStop, settleLot,
+  makeBracket, syncBracketSummary, bracketRealized, openLots, isFullyExited, raiseLotStop, settleLot, bracketPlan,
 } from '../services/bracketService.js';
 
 test('makeBracket splits 50/50 with Lot A taking the odd extra share', () => {
@@ -58,4 +58,20 @@ test('settleLot(stop) on all remaining lots -> fully exited', () => {
   settleLot(pos, 'B', { kind: 'stop', price: 296.5, date: 'd' }, 328);
   assert.equal(isFullyExited(pos.brackets), true);
   assert.equal(openLots(pos.brackets).length, 0);
+});
+
+test('bracketPlan uses the AI split by default and computes per-lot R:R', () => {
+  const opp = { entry_zone: [10, 10.2], stop: 9, t1: 11, t2: 13, split: [40, 60], split_reason: 'strong trend' };
+  const bp = bracketPlan(opp);
+  assert.deepEqual(bp.split, [40, 60]);
+  assert.equal(bp.split_reason, 'strong trend');
+  assert.equal(bp.lot_a.pct, 40);
+  assert.equal(bp.lot_a.tp, 11);
+  assert.equal(bp.lot_b.tp, 13);
+  assert.equal(bp.rr_a > 0 && bp.rr_b > bp.rr_a, true); // T2 further than T1
+});
+
+test('bracketPlan falls back to 50/50 when the opp has no AI split', () => {
+  const bp = bracketPlan({ entry_zone: [10], stop: 9, t1: 11, t2: 13 });
+  assert.deepEqual(bp.split, [50, 50]);
 });

@@ -43,6 +43,21 @@ export function raiseLotStop(pos, lotId, newStop) {
   return syncBracketSummary(pos);
 }
 
+export function bracketPlan(opp, splitAPct) {
+  const a = splitAPct ?? opp.split?.[0] ?? 50;
+  const b = 100 - a;
+  const entry = opp.entry_zone?.[1] ?? opp.entry_zone?.[0] ?? null;
+  const rr = (tp) => (entry != null && opp.stop != null && entry > opp.stop && tp != null ? round2((tp - entry) / (entry - opp.stop)) : null);
+  return {
+    split: [a, b],
+    split_reason: opp.split_reason || '',
+    lot_a: { pct: a, tp: opp.t1 ?? null, stop: opp.stop ?? null },
+    lot_b: { pct: b, tp: opp.t2 ?? null, stop: opp.stop ?? null },
+    rr_a: rr(opp.t1),
+    rr_b: rr(opp.t2),
+  };
+}
+
 export function settleLot(pos, lotId, fill, avgCost) {
   const l = pos.brackets.lots.find((x) => x.id === lotId);
   if (!l || l.tp_hit || l.stopped) return { realized: 0, lot: null };

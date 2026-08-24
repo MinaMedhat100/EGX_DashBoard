@@ -257,6 +257,7 @@ export function opportunityPrompt(candidates, market, exclude, strategy, mode = 
     '  "t1_pct": number, "t2_pct": number, "rr": number,',
     '  "weekly_bias": "Bullish|Bearish|Neutral", "wd_aligned": true|false,',
     '  "thesis": "why this is a strong entry, citing indicators", "conviction": 1-5,',
+    '  "split": [aPct, bPct], "split_reason": "one line: why this split (conviction/trend/room to T2)",',
     '  "catalyst": "one line on a driving headline, or empty"',
     '}]}',
     '',
@@ -273,7 +274,12 @@ export function opportunityPrompt(candidates, market, exclude, strategy, mode = 
     'Each candidate has news[] (headlines+age): down-rank a name on a negative catalyst, note a positive',
     'one; honor the MARKET REGIME above (raise the entry bar in Risk-Off).',
     'Prefer ADX strong (>40), +DI clearly > -DI, RSI 40-70, MACD bullish, R:R to T2 >= 2 where',
-    'possible. Refine the baseline levels to sensible structure-based stops/targets. Output JSON only.',
+    'possible. Refine the baseline levels to sensible structure-based stops/targets.',
+    'BRACKET SPLIT — recommend how to split a ThndrX two-lot entry: Lot A (take-profit at T1) vs Lot B',
+    '(runner to T2), as [aPct, bPct] summing to 100. Weight Lot B higher (e.g. [40,60]) on high conviction',
+    '+ strong ADX + weekly-aligned + wide room to T2; weight Lot A higher (e.g. [60,40]/[70,30]) on lower',
+    'conviction / choppier structure / thin R:R to T2. Use [50,50] only when genuinely balanced.',
+    'Output JSON only.',
   ].join('\n');
 }
 

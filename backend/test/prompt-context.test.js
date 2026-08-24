@@ -65,3 +65,9 @@ test('portfolioPrompt includes bracket lots + BRACKET rule for a bracketed posit
   assert.match(p, /BRACKET/);
   assert.match(p, /runner lot/i);
 });
+
+test('opportunityPrompt asks for a per-stock split', () => {
+  const p = opportunityPrompt([{ ticker: 'X', indicators: {}, suggested: {} }], {}, [], 'S', 'market', {});
+  assert.match(p, /"split"/);
+  assert.match(p, /split_reason/);
+});
