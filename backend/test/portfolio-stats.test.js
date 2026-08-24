@@ -35,3 +35,13 @@ test('open risk sums per-lot once Lot B stop is raised to break-even', () => {
   assert.equal(s.open_risk_egp, 0); // (328-328)*7
   assert.deepEqual(s.unprotected, []);
 });
+
+test('open risk sums per-lot when two open lots carry different stops', () => {
+  const pos = { ticker: 'X', avg_cost: 328, is_liquid: true, unrealized_pnl: 0, brackets: makeBracket(328, 15, 50, 296.5, 347, 369.2) };
+  raiseLotStop(pos, 'B', 310); // Lot A still open @296.5, Lot B raised to 310
+  const s = portfolioStats([pos]);
+  // Per-lot: (328-296.5)*8 + (328-310)*7 = 252 + 126 = 378
+  // (Classic whole-position formula would wrongly give (328-296.5)*15 = 472.5)
+  assert.equal(s.open_risk_egp, 378);
+  assert.deepEqual(s.unprotected, []);
+});
