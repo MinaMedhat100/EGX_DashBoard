@@ -82,7 +82,10 @@ function Shell() {
   const onOrderApplied = (portfolio: PortfolioData, ticker: string, _type: string, msg: string) => {
     setData(portfolio);
     toast(msg, 'success');
-    if (ticker) runAiUpdate(ticker);
+    // Bracket entries already carry user-set per-lot levels — skip the classic AI level-setter
+    // (which only makes sense for a 'pending' single-target position).
+    const posn = portfolio.positions.find((p) => p.ticker === ticker);
+    if (ticker && !posn?.brackets) runAiUpdate(ticker);
   };
 
   const onApplyLevels = async (ticker: string, levels: { stop: number; t1: number; t2: number }) => {

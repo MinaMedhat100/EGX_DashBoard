@@ -23,6 +23,15 @@ test('applyAiLevels proposes (no mutation) for an existing position', () => {
   assert.equal(pos.levels_source, 'manual'); // unchanged
 });
 
+test('applyAiLevels returns no proposal for a bracketed position (brackets self-manage levels)', () => {
+  const pos = { brackets: { entry_price: 328, lots: [] }, levels_source: 'manual', stop_loss: 296.5,
+    t1_price: 347, t2_price: 369.2, ai: { suggested_stop: 308, suggested_t1: 337, suggested_t2: 369.2 } };
+  const r = applyAiLevels(pos);
+  assert.equal(r.applied, false);
+  assert.equal(r.proposal, undefined); // no classic Apply chip for brackets
+  assert.equal(pos.stop_loss, 296.5); // untouched
+});
+
 test('commitLevels sets levels and marks manual', () => {
   const pos = { levels_source: 'ai', stop_loss: 0, t1_price: 0, t2_price: 0 };
   commitLevels(pos, { stop: 10, t1: 12, t2: 14 });

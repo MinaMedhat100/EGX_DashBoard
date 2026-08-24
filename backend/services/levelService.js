@@ -12,6 +12,9 @@ function pos(v) {
 // New position (levels_source 'pending') -> adopt AI's suggested levels.
 // Existing position -> return a proposal, leave real levels untouched.
 export function applyAiLevels(position) {
+  // Bracketed positions manage stop/targets per-lot (ThndrX two-lot brackets); the classic
+  // whole-position proposal/apply flow would desync the lots, so never offer it for a bracket.
+  if (position.brackets) return { applied: false };
   const ai = position.ai || {};
   const stop = pos(ai.suggested_stop);
   const t1 = pos(ai.suggested_t1);
