@@ -50,6 +50,15 @@ export function LogOrderModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ThndrX bracket entry (BUY_NEW only).
+  const [entryMode, setEntryMode] = useState<'classic' | 'bracket'>('classic');
+  const [split, setSplit] = useState('50');
+  const [bStop, setBStop] = useState('');
+  const [bT1, setBT1] = useState('');
+  const [bT2, setBT2] = useState('');
+  // Lot-aware exit (SELL / STOP_OUT on a bracketed position).
+  const [lot, setLot] = useState<'A' | 'B' | 'ALL'>('A');
+
   // Prefill from the originating card / reset when opened.
   useEffect(() => {
     if (open) {
@@ -63,10 +72,17 @@ export function LogOrderModal({
       setRaiseBe(true);
       setFifoCost('');
       setError(null);
+      setEntryMode('classic');
+      setSplit('50');
+      setBStop('');
+      setBT1('');
+      setBT2('');
+      setLot('A');
     }
   }, [open, initialTicker]);
 
   const held = positions.find((p) => p.ticker === ticker.toUpperCase());
+  const isLotAware = (type === 'SELL' || type === 'STOP_OUT') && !!held?.brackets;
 
   const submit = async () => {
     setBusy(true);
@@ -85,6 +101,17 @@ export function LogOrderModal({
         payload.raise_stop_be = raiseBe;
       }
       if (type === 'STOP_OUT' && fifoCost) payload.fifo_cost = Number(fifoCost);
+      if (type === 'BUY_NEW' && entryMode === 'bracket') {
+        payload.mode = 'bracket';
+        payload.split = Number(split) || 50;
+        payload.stop_loss = Number(bStop) || 0;
+        payload.t1_price = Number(bT1) || 0;
+        payload.t2_price = Number(bT2) || 0;
+      }
+      if ((type === 'SELL' || type === 'STOP_OUT') && held?.brackets) {
+        payload.lot = lot; // shares are derived per-lot on the backend
+        delete payload.shares;
+      }
       const res = await api.logOrder(payload);
       onApplied(res.portfolio, ticker.toUpperCase(), type, res.toast || 'Portfolio updated');
       onClose();
@@ -115,9 +142,31 @@ export function LogOrderModal({
           <Field label="Date">
             <input type="date" className={input} value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
-          <Field label="Shares">
-            <input type="number" className={input} value={shares} onChange={(e) => setShares(e.target.value)} placeholder="125" />
-          </Field>
+          {isLotAware ? (
+            <Field label="Lot">
+              <div className="flex gap-2">
+                {(['A', 'B', 'ALL'] as const).map((l) => {
+                  const lotInfo = l !== 'ALL' ? held?.brackets?.lots.find((x) => x.id === l) : undefined;
+                  return (
+                    <button
+                      key={l}
+                      onClick={() => setLot(l)}
+                      className={`flex-1 rounded-lg py-2 text-xs font-semibold border transition ${
+                        lot === l ? 'gradient-purple text-white border-transparent' : 'border-white/15 text-txt-secondary'
+                      }`}
+                    >
+                      {l}
+                      {lotInfo ? ` · ${lotInfo.shares.toLocaleString()}sh (${lotInfo.target})` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          ) : (
+            <Field label="Shares">
+              <input type="number" className={input} value={shares} onChange={(e) => setShares(e.target.value)} placeholder="125" />
+            </Field>
+          )}
           <Field label="Price (EGP)">
             <input type="number" step="0.01" className={input} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="38.00" />
           </Field>
@@ -158,8 +207,43 @@ export function LogOrderModal({
         )}
 
         {type === 'BUY_NEW' && (
+          <Field label="Entry Mode">
+            <div className="flex gap-2">
+              {(['classic', 'bracket'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setEntryMode(m)}
+                  className={`flex-1 rounded-lg py-2 text-sm font-semibold border transition capitalize ${
+                    entryMode === m ? 'gradient-purple text-white border-transparent' : 'border-white/15 text-txt-secondary'
+                  }`}
+                >
+                  {m === 'classic' ? 'Classic' : 'ThndrX Bracket'}
+                </button>
+              ))}
+            </div>
+          </Field>
+        )}
+
+        {type === 'BUY_NEW' && entryMode === 'classic' && (
           <div className="text-[11px] text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/30 rounded-lg px-3 py-2">
             🧠 AI will set the stop &amp; targets from live indicators right after you log this.
+          </div>
+        )}
+
+        {type === 'BUY_NEW' && entryMode === 'bracket' && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Split % (Lot A)">
+              <input type="number" className={input} value={split} onChange={(e) => setSplit(e.target.value)} placeholder="50" />
+            </Field>
+            <Field label="Stop">
+              <input type="number" step="0.01" className={input} value={bStop} onChange={(e) => setBStop(e.target.value)} placeholder="36.00" />
+            </Field>
+            <Field label="T1">
+              <input type="number" step="0.01" className={input} value={bT1} onChange={(e) => setBT1(e.target.value)} placeholder="40.00" />
+            </Field>
+            <Field label="T2">
+              <input type="number" step="0.01" className={input} value={bT2} onChange={(e) => setBT2(e.target.value)} placeholder="42.00" />
+            </Field>
           </div>
         )}
 
