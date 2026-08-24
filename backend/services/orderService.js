@@ -19,6 +19,11 @@ function recompute(pos) {
   }
 }
 
+// bracketRealizedSafe — a settled lot has `exit_price`; an open one contributes 0.
+function bracketRealizedSafe(lot, avgCost) {
+  return lot.exit_price == null ? 0 : Math.round(((lot.exit_price - avgCost) * lot.shares) * 100) / 100;
+}
+
 function logEntry(e) {
   return {
     id: uuid().slice(0, 12),
@@ -102,12 +107,16 @@ export function applyOrder(data, order) {
   const toasts = [];
 
   if (!type || !ticker) throw httpErr(400, 'type and ticker are required');
-  if (type !== 'BUY_NEW' && type !== 'BUY_ADD' && (!shares || shares <= 0)) {
-    throw httpErr(400, 'shares must be a positive number');
-  }
 
   const idx = data.positions.findIndex((p) => p.ticker === ticker);
   const pos = idx >= 0 ? data.positions[idx] : null;
+
+  // Lot-keyed bracket exits derive their share count from the lot itself, so `shares`
+  // isn't part of the order payload for them — exempt that case from the classic guard.
+  const isBracketExit = pos?.brackets && (type === 'SELL' || type === 'STOP_OUT');
+  if (type !== 'BUY_NEW' && type !== 'BUY_ADD' && !isBracketExit && (!shares || shares <= 0)) {
+    throw httpErr(400, 'shares must be a positive number');
+  }
 
   // ── BUY (new position) ──────────────────────────────────────────────────────
   if (type === 'BUY_NEW') {
@@ -129,6 +138,37 @@ export function applyOrder(data, order) {
   }
 
   if (!pos) throw httpErr(404, `position ${ticker} not found`);
+
+  // ── bracketed position exits (lot-keyed) ────────────────────────────────────
+  if (pos.brackets && (type === 'SELL' || type === 'STOP_OUT')) {
+    if (!price) throw httpErr(400, 'price required');
+    const kind = type === 'STOP_OUT' ? 'stop' : 'tp';
+    const wanted = (order.lot || (type === 'SELL' ? 'A' : 'ALL')).toUpperCase();
+    const ids = wanted === 'ALL' ? openLots(pos.brackets).map((l) => l.id) : [wanted];
+    if (!ids.length) throw httpErr(400, 'no open lots to settle');
+    for (const id of ids) {
+      const { realized, lot } = settleLot(pos, id, { kind, price, date }, pos.avg_cost);
+      if (!lot) continue;
+      data.realized_pnl = round2(data.realized_pnl + realized);
+      const label = kind === 'tp' ? `SELL (Lot ${id} @ ${lot.target})` : `STOP-OUT (Lot ${id})`;
+      data.action_log.unshift(logEntry({ type: label, ticker, shares: lot.shares, price, fifo_cost: kind === 'stop' ? pos.avg_cost : null, new_avg_cost: pos.avg_cost, total_shares: pos.shares, realized_pnl: realized, notes, date }));
+      toasts.push(`${ticker}: Lot ${id} ${kind === 'tp' ? 'banked @ ' + lot.target : 'stopped'} @ ${price} (${realized >= 0 ? '+' : ''}${realized} EGP)`);
+    }
+    if (isFullyExited(pos.brackets)) {
+      const realizedTotal = pos.brackets.lots.reduce((s, l) => s + bracketRealizedSafe(l, pos.avg_cost), 0);
+      data.exited_positions.unshift({ ticker, exit_date: date, exit_price: price, shares: pos.brackets.lots.reduce((s, l) => s + l.shares, 0), avg_cost: pos.avg_cost, realized_pnl: round2(realizedTotal), exit_type: ids.length && kind === 'stop' ? 'STOP-OUT' : 'SELL', approximate: false });
+      data.positions.splice(idx, 1);
+      toasts.push(`${ticker} fully exited`);
+    } else {
+      const b = pos.brackets.lots.find((l) => l.id === 'B');
+      if (kind === 'tp' && b && !b.stop_raised && pos.avg_cost > 0 && b.stop < pos.avg_cost) {
+        toasts.push(`Raise Lot B stop ${b.stop} → ${pos.avg_cost} (break-even) in ThndrX`);
+      }
+      pos.position_label = `${pos.shares}sh runner — Lot ${ids.join('/')} ${kind === 'tp' ? 'banked' : 'stopped'} @ ${price}`;
+      recompute(pos);
+    }
+    return { toasts };
+  }
 
   // ── BUY (add to existing) ───────────────────────────────────────────────────
   if (type === 'BUY_ADD') {
