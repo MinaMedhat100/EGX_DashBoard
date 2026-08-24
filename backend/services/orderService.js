@@ -1,6 +1,7 @@
 // orderService.js — order-trigger logging with FIFO cost basis.
 // Mutates the portfolio data object in place (caller persists). Per prompt.md Step 6.
 import { v4 as uuid } from 'uuid';
+import { makeBracket, syncBracketSummary, settleLot, isFullyExited, openLots } from './bracketService.js';
 
 const ILLIQUID = new Set(['EGX30ETF', 'BAL', 'CCB']);
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -70,6 +71,18 @@ function makeNewPosition(order, date) {
   };
 }
 
+function makeBracketPosition(order, date) {
+  const base = makeNewPosition(order, date); // reuse classic scaffold (identity, indicators=null, ai=null)
+  base.brackets = makeBracket(
+    order.price, Number(order.shares), Number(order.split) || 50,
+    Number(order.stop_loss) || 0, Number(order.t1_price) || 0, Number(order.t2_price) || 0,
+  );
+  base.levels_source = 'manual';
+  base.position_label = `${order.shares}sh bracket — entered ${date} @ ${order.price}`;
+  syncBracketSummary(base);
+  return base;
+}
+
 /**
  * calcFifoCost — the avg_cost stored is already the FIFO cost of the remaining shares
  * (per the existing workflow), so it IS the cost basis for the exited shares unless the
@@ -100,6 +113,13 @@ export function applyOrder(data, order) {
   if (type === 'BUY_NEW') {
     if (pos) throw httpErr(400, `${ticker} already held — use "Add to position"`);
     if (!shares || !price) throw httpErr(400, 'shares and price required');
+    if (order.mode === 'bracket') {
+      if (shares < 2) throw httpErr(400, 'a bracket entry needs at least 2 shares');
+      data.positions.push(makeBracketPosition({ ...order, ticker, shares, price }, date));
+      data.action_log.unshift(logEntry({ type: 'BUY (bracket)', ticker, shares, price, new_avg_cost: price, total_shares: shares, notes, date }));
+      toasts.push(`Opened ${ticker} bracket: ${shares}sh @ ${price} (split ${order.split || 50}/${100 - (order.split || 50)})`);
+      return { toasts };
+    }
     data.positions.push(makeNewPosition({ ...order, ticker, shares, price }, date));
     data.action_log.unshift(
       logEntry({ type: 'BUY', ticker, shares, price, new_avg_cost: price, total_shares: shares, notes, date }),
