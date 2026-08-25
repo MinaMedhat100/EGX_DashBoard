@@ -85,3 +85,17 @@ test('bracket SELL Lot A without raise_stop_be leaves Lot B stop and emits advis
   assert.equal(b.stop_raised, false);
   assert.ok(/Raise Lot B stop/.test(t.toasts.join(' ')));
 });
+
+test('BUY_ADD is rejected on a bracketed position (would corrupt the lots)', () => {
+  const data = emptyData();
+  applyOrder(data, {
+    type: 'BUY_NEW', mode: 'bracket', ticker: 'WKOL', shares: 15, price: 328,
+    split: 50, stop_loss: 296.5, t1_price: 347, t2_price: 369.2, date: 'd',
+  });
+  assert.throws(
+    () => applyOrder(data, { type: 'BUY_ADD', ticker: 'WKOL', shares: 5, price: 320, date: 'd2' }),
+    /bracket/i,
+  );
+  assert.equal(data.positions[0].shares, 15); // unchanged
+  assert.equal(data.positions[0].avg_cost, 328); // unchanged
+});

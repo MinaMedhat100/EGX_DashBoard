@@ -83,6 +83,7 @@ export function LogOrderModal({
 
   const held = positions.find((p) => p.ticker === ticker.toUpperCase());
   const isLotAware = (type === 'SELL' || type === 'STOP_OUT') && !!held?.brackets;
+  const addBlocked = type === 'BUY_ADD' && !!held?.brackets;
 
   const submit = async () => {
     setBusy(true);
@@ -257,11 +258,18 @@ export function LogOrderModal({
           </div>
         )}
 
+        {addBlocked && (
+          <div className="text-[11px] text-status-yellow bg-status-yellow/10 border border-status-yellow/30 rounded-lg px-3 py-2">
+            {ticker.toUpperCase()} is a ThndrX bracket — its lots are set at entry, so adding to it isn't
+            supported. Open a separate position/bracket instead.
+          </div>
+        )}
+
         {error && <div className="text-status-red text-sm">⚠ {error}</div>}
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="btn-ghost flex-1">Cancel</button>
-          <button onClick={submit} disabled={busy} className="btn-primary flex-1">
+          <button onClick={submit} disabled={busy || addBlocked} className="btn-primary flex-1">
             {busy ? 'Updating…' : 'Confirm & Update'}
           </button>
         </div>

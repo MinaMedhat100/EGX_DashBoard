@@ -180,6 +180,9 @@ export function applyOrder(data, order) {
 
   // ── BUY (add to existing) ───────────────────────────────────────────────────
   if (type === 'BUY_ADD') {
+    // A ThndrX bracket is set per-lot at entry; the classic re-average would write avg_cost/shares
+    // directly and desync the lots. Adding to a bracket is a future "new bracket" flow — block it here.
+    if (pos.brackets) throw httpErr(400, 'Add-to-position is not supported for a ThndrX bracket (its lots are set at entry). Open a separate bracket instead.');
     if (!shares || !price) throw httpErr(400, 'shares and price required');
     const total = pos.shares + shares;
     const newAvg = round2((pos.avg_cost * pos.shares + price * shares) / total);

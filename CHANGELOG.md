@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.1
+
+**Guard add-to-position on brackets.** "Add to position" (`BUY_ADD`) re-averages cost and shares
+directly — which would silently desync a ThndrX bracket's lots. It's now blocked for bracketed
+positions (backend rejects it; the order modal shows a note and disables submit when you pick
+"BUY (add)" on a bracket). Classic positions are unaffected. A proper "add = a new independent
+bracket" flow is planned as a later sub-project.
+
 ## 2.0.0
 
 **ThndrX two-lot brackets.** A single EGX entry can now be placed and tracked as two
