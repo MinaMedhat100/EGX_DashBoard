@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.0
+
+**Theme system — three switchable, persistent themes.** A segmented control in the sidebar footer
+switches between:
+- **Desk** (the new default) — a flat, modern dark "trading terminal": cool slate surfaces, hairline
+  borders, and a single restrained brass accent. Data-first, no glow.
+- **Paper** — a clean flat light theme (near-white canvas, white cards, deep-brass accent).
+- **Neon** — the original glow/gradient/glass look, kept intact.
+
+The choice is saved and re-applied on every load (persists across reloads), and applied before first
+paint so there's no flash. Built on CSS-variable design tokens: one token set drives every surface,
+border, text, and accent; status colors (red/orange/green for stops, targets, P&L) stay semantic and
+constant across themes, tuned for contrast on light. Numbers use tabular figures so columns align.
+
 ## 2.0.1
 
 **Guard add-to-position on brackets.** "Add to position" (`BUY_ADD`) re-averages cost and shares

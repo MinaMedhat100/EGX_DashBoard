@@ -105,7 +105,7 @@ export function PositionCard({
           <button
             onClick={() => onLogOrder(p.ticker)}
             title="Log order"
-            className="text-accent-purple-lt hover:text-white transition text-base leading-none"
+            className="text-accent-purple-lt hover:text-txt-primary transition text-base leading-none"
           >
             ⚡
           </button>
@@ -318,7 +318,7 @@ export function PositionCard({
 
       <button
         onClick={() => setOpen((o) => !o)}
-        className="mt-3 text-xs text-accent-purple-lt hover:text-white transition flex items-center gap-1.5"
+        className="mt-3 text-xs text-accent-purple-lt hover:text-txt-primary transition flex items-center gap-1.5"
       >
         {open ? '▲ Hide analysis' : '▼ Show full analysis'}
         {p.ai && !open && <span className="text-[10px] text-accent-cyan">· AI ready</span>}

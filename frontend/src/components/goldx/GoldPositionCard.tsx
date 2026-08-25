@@ -22,7 +22,7 @@ export function GoldPositionCard({ p, unit, usdEgp, onLog }: { p: GoldPosition; 
           {p.t1_hit && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-status-green/15 text-status-green border border-status-green/40">T1 ✓</span>}
           <MtfBadge mtf={p.mtf} />
         </div>
-        <button onClick={onLog} title="Log gold trade" className="text-accent-purple-lt hover:text-white text-base leading-none">⚡</button>
+        <button onClick={onLog} title="Log gold trade" className="text-accent-purple-lt hover:text-txt-primary text-base leading-none">⚡</button>
       </div>
 
       <div className="text-[11px] text-txt-secondary mt-1">{p.position_label}</div>
