@@ -8,7 +8,7 @@ import { bracketPlan } from '../../lib/brackets';
 
 function Lvl({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="rounded-lg bg-white/5 border border-white/10 px-2 py-1.5">
+    <div className="rounded-lg bg-surface border border-border px-2 py-1.5">
       <div className="text-[10px] text-txt-secondary">{label}</div>
       <div className="font-mono font-semibold text-sm" style={{ color }}>
         {value}
@@ -21,7 +21,7 @@ const d1 = (n?: number) => (n == null ? '—' : n.toFixed(1));
 
 export function OpportunityCard({ o }: { o: Opportunity }) {
   const score = o.score ?? 0;
-  const scoreColor = score >= 70 ? '#22c55e' : score >= 50 ? '#eab308' : '#94a3b8';
+  const scoreColor = score >= 70 ? 'rgb(var(--status-green))' : score >= 50 ? 'rgb(var(--status-yellow))' : 'rgb(var(--muted))';
   const [splitOverride, setSplitOverride] = useState<number | null>(null);
   const bp = bracketPlan(o, splitOverride ?? undefined);
 
@@ -31,7 +31,7 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
         <div className="flex items-center gap-2">
           <span className="text-lg font-extrabold">{o.ticker}</span>
           {o.sector && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-txt-secondary capitalize">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface border border-border text-txt-secondary capitalize">
               {o.sector.replace(/_/g, ' ')}
             </span>
           )}
@@ -56,7 +56,7 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
       <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
         <div>
           ADX <b className="font-mono">{d1(o.adx)}</b> · <span className="text-accent-cyan">+DI {d1(o.plus_di)}</span>{' '}
-          <span className="text-accent-magenta">-DI {d1(o.minus_di)}</span>
+          <span className="text-status-red">-DI {d1(o.minus_di)}</span>
         </div>
         <div className="text-right">
           RSI <b className="font-mono">{d1(o.rsi)}</b> · MACD{' '}
@@ -68,13 +68,13 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
         <Lvl
           label="Entry zone"
           value={o.entry_zone ? `${fmtNum(o.entry_zone[0])}–${fmtNum(o.entry_zone[1])}` : '—'}
-          color="#06b6d4"
+          color="rgb(var(--accent-2))"
         />
-        <Lvl label="Stop" value={fmtNum(o.stop)} color="#ef4444" />
-        <Lvl label="R/R → T2" value={o.rr ? `${o.rr}:1` : '—'} color="#a855f7" />
-        <Lvl label={`T1 (${fmtPct(o.t1_pct)})`} value={fmtNum(o.t1)} color="#f97316" />
-        <Lvl label={`T2 (${fmtPct(o.t2_pct)})`} value={fmtNum(o.t2)} color="#22c55e" />
-        <Lvl label="Conviction" value={`${o.conviction ?? '—'}/5`} color="#a855f7" />
+        <Lvl label="Stop" value={fmtNum(o.stop)} color="rgb(var(--status-red))" />
+        <Lvl label="R/R → T2" value={o.rr ? `${o.rr}:1` : '—'} color="rgb(var(--status-purple))" />
+        <Lvl label={`T1 (${fmtPct(o.t1_pct)})`} value={fmtNum(o.t1)} color="rgb(var(--status-orange))" />
+        <Lvl label={`T2 (${fmtPct(o.t2_pct)})`} value={fmtNum(o.t2)} color="rgb(var(--status-green))" />
+        <Lvl label="Conviction" value={`${o.conviction ?? '—'}/5`} color="rgb(var(--status-purple))" />
       </div>
 
       {(() => {
@@ -93,7 +93,7 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
       })()}
 
       {bp.lot_a.tp != null && bp.lot_b.tp != null && (
-        <div className="mt-3 border-t border-white/10 pt-2 text-[11px]">
+        <div className="mt-3 border-t border-border pt-2 text-[11px]">
           <div className="flex items-center justify-between">
             <span className="text-txt-secondary">ThndrX bracket · split</span>
             <span className="font-mono">
@@ -102,10 +102,10 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
           </div>
           {bp.split_reason && <div className="text-txt-secondary/80 italic">{bp.split_reason}</div>}
           <div className="mt-1 grid grid-cols-2 gap-2 font-mono">
-            <div className="rounded bg-white/5 px-2 py-1">
+            <div className="rounded bg-surface px-2 py-1">
               Lot A {bp.lot_a.pct}% → TP {fmtNum(bp.lot_a.tp)} · R {fmtR(bp.rr_a)}
             </div>
-            <div className="rounded bg-white/5 px-2 py-1">
+            <div className="rounded bg-surface px-2 py-1">
               Lot B {bp.lot_b.pct}% → TP {fmtNum(bp.lot_b.tp)} · R {fmtR(bp.rr_b)}
             </div>
           </div>
@@ -122,7 +122,7 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
       )}
 
       {o.thesis && (
-        <p className="mt-3 text-xs text-txt-primary/85 leading-snug border-t border-white/10 pt-2">
+        <p className="mt-3 text-xs text-txt-primary/85 leading-snug border-t border-border pt-2">
           <span className="text-[10px] font-bold px-1 py-0.5 rounded gradient-purple text-white mr-1.5">AI</span>
           {o.thesis}
         </p>

@@ -16,7 +16,7 @@ function Mini({ label, value, sub, color }: { label: string; value: string; sub:
 export function MarketStrip({ data }: { data: MarketOverview | null }) {
   if (!data) return null;
   const dirColor =
-    data.direction === 'Bullish' ? '#22c55e' : data.direction === 'Bearish' ? '#ef4444' : '#eab308';
+    data.direction === 'Bullish' ? 'rgb(var(--status-green))' : data.direction === 'Bearish' ? 'rgb(var(--status-red))' : 'rgb(var(--status-yellow))';
   const top = data.top_sectors?.[0];
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -26,12 +26,12 @@ export function MarketStrip({ data }: { data: MarketOverview | null }) {
         sub={`avg ${data.change_pct >= 0 ? '+' : ''}${data.change_pct}% · ${data.breadth.advancing}↑ ${data.breadth.declining}↓`}
         color={dirColor}
       />
-      <Mini label="Sentiment" value={data.sentiment} sub={`${data.total_analyzed ?? ''} stocks scanned`} color="#06b6d4" />
+      <Mini label="Sentiment" value={data.sentiment} sub={`${data.total_analyzed ?? ''} stocks scanned`} color="rgb(var(--accent-2))" />
       <Mini
         label="Top Active Sector"
         value={top ? top.sector.replace(/_/g, ' ') : '—'}
         sub={top ? `${top.strong_count} strong · avg score ${top.avg_score}` : ''}
-        color="#a855f7"
+        color="rgb(var(--status-purple))"
       />
     </div>
   );

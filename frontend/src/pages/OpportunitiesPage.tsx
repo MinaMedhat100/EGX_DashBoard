@@ -67,7 +67,7 @@ export function OpportunitiesPage() {
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="text-txt-secondary">Past runs:</span>
           <select
-            className="bg-bg-card border border-white/15 rounded-lg px-2.5 py-1.5 text-sm max-w-[420px]"
+            className="bg-bg-card border border-border-strong rounded-lg px-2.5 py-1.5 text-sm max-w-[420px]"
             value={viewing?.id ?? ''}
             onChange={(e) => history.view(e.target.value || null)}
           >

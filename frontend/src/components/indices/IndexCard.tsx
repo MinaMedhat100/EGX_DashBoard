@@ -5,10 +5,10 @@ import { MtfBadge } from '../common/MtfBadge';
 import { fmtNum, fmtPct } from '../../lib/format';
 
 function regimeColor(regime?: string) {
-  if (!regime) return '#94a3b8';
-  if (/on/i.test(regime)) return '#22c55e';
-  if (/off/i.test(regime)) return '#ef4444';
-  return '#eab308';
+  if (!regime) return 'rgb(var(--muted))';
+  if (/on/i.test(regime)) return 'rgb(var(--status-green))';
+  if (/off/i.test(regime)) return 'rgb(var(--status-red))';
+  return 'rgb(var(--status-yellow))';
 }
 
 const n1 = (n?: number | null) => (n == null ? '—' : Number(n).toFixed(1));
@@ -42,7 +42,7 @@ export function IndexCard({ d }: { d: IndexData }) {
       </div>
 
       {d.ai ? (
-        <div className="mt-3 border-t border-white/10 pt-2">
+        <div className="mt-3 border-t border-border pt-2">
           <div className="flex items-center gap-2 text-xs">
             <span
               className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white"
@@ -55,7 +55,7 @@ export function IndexCard({ d }: { d: IndexData }) {
           <p className="mt-1.5 text-xs text-txt-primary/85 leading-snug">{d.ai.thesis}</p>
         </div>
       ) : (
-        <div className="mt-3 text-xs text-txt-secondary border-t border-white/10 pt-2">AI analysis unavailable — try Refresh.</div>
+        <div className="mt-3 text-xs text-txt-secondary border-t border-border pt-2">AI analysis unavailable — try Refresh.</div>
       )}
 
       <button onClick={() => setOpen((o) => !o)} className="mt-2 text-[11px] text-accent-cyan">
@@ -66,7 +66,7 @@ export function IndexCard({ d }: { d: IndexData }) {
         <div className="mt-2 space-y-3 text-xs">
           <div>
             <div className="text-txt-secondary mb-1">Breadth</div>
-            <div className="flex h-2 rounded overflow-hidden bg-white/5">
+            <div className="flex h-2 rounded overflow-hidden bg-surface">
               <div className="bg-status-green" style={{ width: `${pctOf(d.stats?.advancing, d.stats?.declining)}%` }} />
               <div className="bg-status-red flex-1" />
             </div>
@@ -80,7 +80,7 @@ export function IndexCard({ d }: { d: IndexData }) {
               <div className="text-txt-secondary mb-1">Sector rotation</div>
               <div className="flex flex-wrap gap-1.5">
                 {d.sectors.slice(0, 6).map((s) => (
-                  <span key={s.sector} className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 capitalize">
+                  <span key={s.sector} className="px-1.5 py-0.5 rounded bg-surface border border-border capitalize">
                     {s.sector.replace(/_/g, ' ')} <b className={s.avg_change >= 0 ? 'text-status-green' : 'text-status-red'}>{fmtPct(s.avg_change)}</b>
                   </span>
                 ))}

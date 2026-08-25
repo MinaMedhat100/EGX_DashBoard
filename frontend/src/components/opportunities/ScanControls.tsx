@@ -11,7 +11,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputCls =
-  'w-20 bg-bg-card border border-white/15 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:border-accent-cyan focus:outline-none';
+  'w-20 bg-bg-card border border-border-strong rounded-lg px-2.5 py-1.5 text-sm font-mono focus:border-accent-cyan focus:outline-none';
 
 export function ScanControls({
   params,

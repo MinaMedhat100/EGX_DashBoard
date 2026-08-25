@@ -43,7 +43,7 @@ export function WatchlistEditor({
             onChange={(e) => setText(e.target.value)}
             placeholder="COMI, SWDY, EGAS …"
             rows={2}
-            className="w-full bg-bg-card border border-white/15 rounded-lg px-3 py-2 text-sm font-mono focus:border-accent-cyan focus:outline-none"
+            className="w-full bg-bg-card border border-border-strong rounded-lg px-3 py-2 text-sm font-mono focus:border-accent-cyan focus:outline-none"
           />
           <div className="flex items-center gap-3 text-xs text-txt-secondary">
             <button onClick={() => onSave(unique)} disabled={saving} className="btn-ghost py-1.5">

@@ -4,7 +4,7 @@ import { IndexCard } from '../components/indices/IndexCard';
 import { GlowCard } from '../components/common/GlowCard';
 
 function regimeBg(regime?: string) {
-  if (!regime) return 'bg-white/5 border-white/10';
+  if (!regime) return 'bg-surface border-border';
   if (/on/i.test(regime)) return 'bg-status-green/10 border-status-green/30 text-status-green';
   if (/off/i.test(regime)) return 'bg-status-red/10 border-status-red/30 text-status-red';
   return 'bg-status-orange/10 border-status-orange/30 text-status-orange';
