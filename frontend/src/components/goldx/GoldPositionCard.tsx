@@ -33,7 +33,7 @@ export function GoldPositionCard({ p, unit, usdEgp, onLog }: { p: GoldPosition; 
         <div><span className="text-txt-secondary">Avg </span><span className="font-mono">{fmtGold(p.avg_cost, unit, usdEgp)}</span></div>
         <div className="text-right">
           {pnlDisp != null ? (
-            <span className={`font-semibold ${pnlDisp >= 0 ? 'text-status-green' : 'text-accent-magenta'}`}>
+            <span className={`font-semibold ${pnlDisp >= 0 ? 'text-status-green' : 'text-status-red'}`}>
               {pnlDisp >= 0 ? '+' : '−'}{pnlSym}{Math.abs(pnlDisp).toFixed(2)}{p.unrealized_pct != null ? ` (${p.unrealized_pct}%)` : ''}
             </span>
           ) : <span className="text-txt-secondary text-xs">—</span>}
@@ -41,8 +41,8 @@ export function GoldPositionCard({ p, unit, usdEgp, onLog }: { p: GoldPosition; 
       </div>
 
       <div className="grid grid-cols-3 gap-2 mt-3">
-        {([['Stop', p.stop_loss, '#ef4444'], ['T1', p.t1_price, '#f97316'], ['T2', p.t2_price, '#22c55e']] as const).map(([label, v, color]) => (
-          <div key={label} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1.5">
+        {([['Stop', p.stop_loss, 'rgb(var(--status-red))'], ['T1', p.t1_price, 'rgb(var(--status-orange))'], ['T2', p.t2_price, 'rgb(var(--status-green))']] as const).map(([label, v, color]) => (
+          <div key={label} className="rounded-lg bg-surface border border-border px-2 py-1.5">
             <div className="text-[10px] text-txt-secondary">{label}</div>
             <div className="font-mono font-semibold text-sm" style={{ color }}>{v > 0 ? fmtGold(v, unit, usdEgp) : '—'}</div>
           </div>

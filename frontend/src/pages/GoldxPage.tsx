@@ -44,7 +44,7 @@ export function GoldxPage() {
             <button
               key={u.key}
               onClick={() => setUnit(u.key)}
-              className={`text-xs px-2.5 py-1 rounded-lg border ${unit === u.key ? 'gradient-purple text-white border-transparent' : 'bg-white/5 border-white/10 text-txt-secondary'}`}
+              className={`text-xs px-2.5 py-1 rounded-lg border ${unit === u.key ? 'gradient-purple text-white border-transparent' : 'bg-surface border-border text-txt-secondary'}`}
             >
               {u.label}
             </button>

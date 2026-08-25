@@ -13,7 +13,7 @@ export function ThndrWindowChip() {
   return (
     <span
       title="Thndr gold execution windows: 10:00 · 13:00 · 15:00 Cairo"
-      className="text-[11px] rounded-lg px-2.5 py-1 bg-white/5 border border-white/10 text-txt-secondary"
+      className="text-[11px] rounded-lg px-2.5 py-1 bg-surface border border-border text-txt-secondary"
     >
       ⏰ Next Thndr window {label} · in {h > 0 ? `${h}h ` : ''}{m}m
     </span>
