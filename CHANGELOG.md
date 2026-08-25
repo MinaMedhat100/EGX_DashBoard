@@ -6,7 +6,7 @@
 switches between:
 - **Desk** (the new default) — a flat, modern dark "trading terminal": cool slate surfaces, hairline
   borders, and a single restrained brass accent. Data-first, no glow.
-- **Paper** — a clean flat light theme (near-white canvas, white cards, deep-brass accent).
+- **Paper** — a clean flat light theme (near-white canvas, white cards, calm blue accent).
 - **Neon** — the original glow/gradient/glass look, kept intact.
 
 The choice is saved and re-applied on every load (persists across reloads), and applied before first
