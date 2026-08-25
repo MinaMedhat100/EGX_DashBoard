@@ -5,7 +5,7 @@ export function Gauge({
   value,
   max = 100,
   thresholds = [],
-  color = '#a855f7',
+  color = 'rgb(var(--accent))',
   unit = '',
 }: {
   label: string;
@@ -25,12 +25,12 @@ export function Gauge({
           {unit}
         </span>
       </div>
-      <div className="relative h-2 rounded-full bg-white/5 overflow-hidden">
+      <div className="relative h-2 rounded-full bg-surface overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
         {thresholds.map((t) => (
           <div
             key={t}
-            className="absolute top-0 h-full w-px bg-white/40"
+            className="absolute top-0 h-full w-px bg-txt-secondary/50"
             style={{ left: `${(t / max) * 100}%` }}
           />
         ))}
@@ -48,13 +48,13 @@ export function DiGauge({ plusDi, minusDi }: { plusDi: number | null; minusDi: n
   return (
     <div>
       <div className="flex justify-between text-[11px] mb-1">
-        <span className="text-accent-cyan font-mono font-semibold">+DI {plusDi == null ? '—' : plusDi.toFixed(1)}</span>
+        <span className="text-status-green font-mono font-semibold">+DI {plusDi == null ? '—' : plusDi.toFixed(1)}</span>
         <span className="text-txt-secondary">direction</span>
-        <span className="text-accent-magenta font-mono font-semibold">-DI {minusDi == null ? '—' : minusDi.toFixed(1)}</span>
+        <span className="text-status-red font-mono font-semibold">-DI {minusDi == null ? '—' : minusDi.toFixed(1)}</span>
       </div>
-      <div className="flex h-2 rounded-full overflow-hidden bg-white/5">
-        <div className="h-full" style={{ width: `${pPct}%`, background: '#06b6d4' }} />
-        <div className="h-full" style={{ width: `${100 - pPct}%`, background: '#ec4899' }} />
+      <div className="flex h-2 rounded-full overflow-hidden bg-surface">
+        <div className="h-full" style={{ width: `${pPct}%`, background: 'rgb(var(--status-green))' }} />
+        <div className="h-full" style={{ width: `${100 - pPct}%`, background: 'rgb(var(--status-red))' }} />
       </div>
     </div>
   );

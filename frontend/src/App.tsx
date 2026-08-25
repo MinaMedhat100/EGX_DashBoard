@@ -19,9 +19,9 @@ function LoadingState() {
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {Array.from({ length: 4 }).map((_, i) => (
         <GlowCard key={i} className="p-4 h-44 shimmer" >
-          <div className="h-5 w-24 bg-white/10 rounded mb-3" />
-          <div className="h-3 w-40 bg-white/5 rounded mb-2" />
-          <div className="h-3 w-32 bg-white/5 rounded" />
+          <div className="h-5 w-24 bg-border rounded mb-3" />
+          <div className="h-3 w-40 bg-surface rounded mb-2" />
+          <div className="h-3 w-32 bg-surface rounded" />
         </GlowCard>
       ))}
     </div>

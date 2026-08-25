@@ -1,6 +1,33 @@
 import type { PortfolioData } from '../../types/portfolio';
 import { PriceChange } from '../common/PriceChange';
 import { statusDot, timeAgo, fmtEgp, dailyPct } from '../../lib/format';
+import { useTheme, type Theme } from '../../theme/ThemeProvider';
+
+const THEMES: { id: Theme; label: string }[] = [
+  { id: 'neon', label: 'Neon' },
+  { id: 'desk', label: 'Desk' },
+  { id: 'paper', label: 'Paper' },
+];
+
+function ThemeSwitch() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <div className="flex gap-1 rounded-lg border border-border p-1 bg-surface" role="group" aria-label="Theme">
+      {THEMES.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => setTheme(t.id)}
+          aria-pressed={theme === t.id}
+          className={`flex-1 text-[11px] font-semibold rounded-md py-1 transition ${
+            theme === t.id ? 'bg-accent-purple/15 text-accent-purple-lt' : 'text-txt-secondary hover:text-txt-primary'
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export type Tab = 'portfolio' | 'indices' | 'opportunities' | 'goldx' | 'history';
 
@@ -9,7 +36,7 @@ function NavItem({ active, onClick, icon, label }: { active: boolean; onClick: (
     <button
       onClick={onClick}
       className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition ${
-        active ? 'gradient-purple text-white shadow-glow' : 'text-txt-secondary hover:text-txt-primary hover:bg-white/5'
+        active ? 'gradient-purple text-white shadow-glow' : 'text-txt-secondary hover:text-txt-primary hover:bg-surface'
       }`}
     >
       <span>{icon}</span>
@@ -38,7 +65,7 @@ export function Sidebar({
     phase === 'refreshing' ? '⏳ Refreshing…' : phase === 'analyzing' ? '🧠 AI analyzing…' : '🔄 Refresh Prices';
 
   return (
-    <aside className="w-[220px] shrink-0 h-screen sticky top-0 flex flex-col gap-4 p-4 border-r border-white/5 bg-bg-card/40 backdrop-blur">
+    <aside className="w-[220px] shrink-0 h-screen sticky top-0 flex flex-col gap-4 p-4 border-r border-border bg-bg-card/40 backdrop-blur">
       <div className="text-xl font-extrabold text-gradient leading-tight">
         EGX
         <br />
@@ -53,7 +80,7 @@ export function Sidebar({
         <NavItem active={tab === 'history'} onClick={() => setTab('history')} icon="📜" label="History" />
       </nav>
 
-      <div className="border-t border-white/10" />
+      <div className="border-t border-border" />
 
       <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
         <div className="text-[10px] uppercase tracking-wide text-txt-secondary mb-1.5 px-1">Positions</div>
@@ -79,9 +106,10 @@ export function Sidebar({
         <div className="text-xs rounded-lg px-2.5 py-1.5 bg-status-green/10 border border-status-green/30 text-status-green font-medium">
           Realized: {fmtEgp(data?.realized_pnl)}
         </div>
-        <div className="text-[10px] text-txt-secondary leading-snug border-t border-white/10 pt-2">
+        <div className="text-[10px] text-txt-secondary leading-snug border-t border-border pt-2">
           Thndr: ONE active order per stock — stop-loss OR limit sell, not both.
         </div>
+        <ThemeSwitch />
         <div className="text-[10px] text-txt-secondary text-right">v{__APP_VERSION__}</div>
       </div>
     </aside>

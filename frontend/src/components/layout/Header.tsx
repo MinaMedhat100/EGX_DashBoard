@@ -18,11 +18,11 @@ export function Header({ tab, model, bridgeOk }: { tab: Tab; model: string | nul
       </div>
       <div className="flex items-center gap-3 text-[11px] text-txt-secondary">
         {model && (
-          <span className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 bg-white/5 border border-white/10">
+          <span className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 bg-surface border border-border">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-purple-lt" /> AI: {model}
           </span>
         )}
-        <span className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 bg-white/5 border border-white/10">
+        <span className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 bg-surface border border-border">
           <span className={`w-1.5 h-1.5 rounded-full ${bridgeOk ? 'bg-status-green' : 'bg-status-red'}`} />
           MCP {bridgeOk ? 'live' : 'down'}
         </span>
