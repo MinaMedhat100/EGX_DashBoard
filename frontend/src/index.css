@@ -2,23 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg-primary: #0d0b1e;
-  --bg-card: #12102a;
-  --bg-card-hover: #1a1833;
-  --accent-purple: #7c3aed;
-  --accent-purple-lt: #a855f7;
-  --accent-cyan: #06b6d4;
-  --accent-magenta: #ec4899;
-  --accent-teal: #14b8a6;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --status-red: #ef4444;
-  --status-orange: #f97316;
-  --status-yellow: #eab308;
-  --status-green: #22c55e;
-  --status-purple: #a855f7;
-  --border-glow: rgba(124, 58, 237, 0.3);
+/* ── design tokens (RGB triplets; consumed by Tailwind as rgb(var(--x) / <alpha>)) ── */
+:root[data-theme='desk'] {
+  --bg: 14 17 22; --card: 22 26 33; --card-hover: 28 34 43; --surface: 27 33 42;
+  --border: 38 44 54; --border-strong: 51 59 71; --text: 230 233 239; --muted: 138 147 162;
+  --accent: 212 175 106; --accent-deep: 212 175 106; --accent-2: 212 175 106;
+  --accent-fill: 212 175 106; --accent-ink: 23 19 7;
+  --status-red: 239 68 68; --status-orange: 249 115 22; --status-yellow: 234 179 8;
+  --status-green: 34 197 94; --status-purple: 168 85 247;
+}
+:root[data-theme='paper'] {
+  --bg: 244 246 248; --card: 255 255 255; --card-hover: 248 250 252; --surface: 245 247 249;
+  --border: 225 229 234; --border-strong: 205 211 218; --text: 26 31 39; --muted: 91 100 114;
+  --accent: 176 131 47; --accent-deep: 176 131 47; --accent-2: 176 131 47;
+  --accent-fill: 200 155 74; --accent-ink: 33 22 3;
+  --status-red: 220 38 38; --status-orange: 234 88 12; --status-yellow: 202 138 4;
+  --status-green: 21 128 61; --status-purple: 147 51 234;
+}
+:root[data-theme='neon'],
+:root:not([data-theme]) {
+  --bg: 13 11 30; --card: 18 16 42; --card-hover: 26 24 51; --surface: 30 27 56;
+  --border: 44 40 74; --border-strong: 60 52 96; --text: 241 245 249; --muted: 148 163 184;
+  --accent: 168 85 247; --accent-deep: 124 58 237; --accent-2: 6 182 212;
+  --accent-fill: 124 58 237; --accent-ink: 255 255 255;
+  --status-red: 239 68 68; --status-orange: 249 115 22; --status-yellow: 234 179 8;
+  --status-green: 34 197 94; --status-purple: 168 85 247;
 }
 
 html,
@@ -29,20 +37,24 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg-primary);
+  background: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+/* Neon keeps its signature radial page-glow; flat themes stay solid. */
+:root[data-theme='neon'] body,
+:root:not([data-theme]) body {
   background-image:
     radial-gradient(circle at 15% 0%, rgba(124, 58, 237, 0.12), transparent 40%),
     radial-gradient(circle at 85% 10%, rgba(6, 182, 212, 0.1), transparent 38%),
     radial-gradient(circle at 50% 100%, rgba(236, 72, 153, 0.08), transparent 45%);
-  color: var(--text-primary);
-  font-family: 'Inter', system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
 }
 
 @layer components {
   .glass {
-    background: rgba(18, 16, 42, 0.72);
-    border: 1px solid var(--border-glow);
+    background: rgb(var(--card) / 0.72);
+    border: 1px solid rgb(var(--border));
     backdrop-filter: blur(10px);
     border-radius: 1rem;
   }
@@ -51,11 +63,12 @@ body {
     transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, transform 0.2s ease;
   }
   .glass-hover:hover {
-    background: rgba(26, 24, 51, 0.82);
-    border-color: rgba(124, 58, 237, 0.55);
-    box-shadow: 0 0 28px rgba(124, 58, 237, 0.22);
+    background: rgb(var(--card-hover));
+    border-color: rgb(var(--accent) / 0.55);
+    box-shadow: 0 0 28px rgb(var(--accent) / 0.22);
   }
 
+  /* Neon base gradients — flat themes flatten these below */
   .gradient-purple {
     background-image: linear-gradient(135deg, #7c3aed 0%, #ec4899 100%);
   }
@@ -83,8 +96,50 @@ body {
     @apply gradient-cyan text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-ghost {
-    @apply rounded-xl px-3 py-2 text-sm font-medium text-txt-secondary border border-white/10 hover:border-accent-purple/50 hover:text-txt-primary transition;
+    @apply rounded-xl px-3 py-2 text-sm font-medium text-txt-secondary border border-border hover:border-accent-purple/50 hover:text-txt-primary transition;
   }
+}
+
+/* ── flat theme (Desk / Paper): drop gradients, glow, glass blur ── */
+:root[data-theme='desk'] .gradient-purple,
+:root[data-theme='paper'] .gradient-purple,
+:root[data-theme='desk'] .gradient-cyan,
+:root[data-theme='paper'] .gradient-cyan,
+:root[data-theme='desk'] .gradient-green,
+:root[data-theme='paper'] .gradient-green,
+:root[data-theme='desk'] .gradient-magenta,
+:root[data-theme='paper'] .gradient-magenta {
+  background-image: none;
+  background-color: rgb(var(--accent-fill));
+}
+:root[data-theme='desk'] .text-gradient,
+:root[data-theme='paper'] .text-gradient {
+  background: none;
+  color: rgb(var(--accent));
+  -webkit-text-fill-color: currentColor;
+}
+:root[data-theme='desk'] .glass,
+:root[data-theme='paper'] .glass {
+  backdrop-filter: none;
+  background: rgb(var(--card));
+  border-color: rgb(var(--border));
+}
+:root[data-theme='desk'] .glass-hover:hover,
+:root[data-theme='paper'] .glass-hover:hover {
+  box-shadow: none;
+  background: rgb(var(--card-hover));
+  border-color: rgb(var(--border-strong));
+}
+:root[data-theme='desk'] .btn-primary,
+:root[data-theme='paper'] .btn-primary,
+:root[data-theme='desk'] .btn-cyan,
+:root[data-theme='paper'] .btn-cyan {
+  box-shadow: none;
+  color: rgb(var(--accent-ink));
+}
+:root[data-theme='desk'] .shimmer::after,
+:root[data-theme='paper'] .shimmer::after {
+  background-image: linear-gradient(90deg, transparent, rgb(var(--surface)), transparent);
 }
 
 /* skeleton shimmer overlay */
@@ -117,7 +172,7 @@ body {
   width: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(124, 58, 237, 0.35);
+  background: rgb(var(--accent) / 0.35);
   border-radius: 8px;
 }
 *::-webkit-scrollbar-track {
