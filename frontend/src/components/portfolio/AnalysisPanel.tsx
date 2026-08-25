@@ -5,15 +5,15 @@ import { Gauge, DiGauge } from '../common/Gauge';
 import { fmtNum, fmtNewsTime } from '../../lib/format';
 
 const REC_COLOR: Record<string, string> = {
-  EXIT: '#ef4444',
-  TRIM: '#f97316',
-  HOLD: '#eab308',
-  ADD: '#22c55e',
-  WATCH: '#a855f7',
+  EXIT: 'rgb(var(--status-red))',
+  TRIM: 'rgb(var(--status-orange))',
+  HOLD: 'rgb(var(--status-yellow))',
+  ADD: 'rgb(var(--status-green))',
+  WATCH: 'rgb(var(--status-purple))',
 };
 
 function AiBlock({ ai }: { ai: AiAnalysis }) {
-  const color = REC_COLOR[ai.recommendation] ?? '#a855f7';
+  const color = REC_COLOR[ai.recommendation] ?? 'rgb(var(--status-purple))';
   const hasLevels = ai.suggested_stop || ai.suggested_t1 || ai.suggested_t2;
   return (
     <div className="rounded-xl p-3" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.3)' }}>
@@ -22,7 +22,7 @@ function AiBlock({ ai }: { ai: AiAnalysis }) {
         <span className="font-bold" style={{ color }}>{ai.recommendation}</span>
         <span className="text-txt-secondary text-xs">conviction {ai.conviction}/5</span>
         {ai.vs_prior && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-txt-secondary">
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface border border-border text-txt-secondary">
             vs prior: {ai.vs_prior}{ai.vs_prior === 'changed' && ai.change_reason ? ` — ${ai.change_reason}` : ''}
           </span>
         )}
@@ -72,13 +72,13 @@ export function AnalysisPanel({ p }: { p: Position }) {
   }, [p.ticker]);
 
   return (
-    <div className="mt-3 pt-3 border-t border-white/10 animate-fade-in space-y-4 text-sm">
+    <div className="mt-3 pt-3 border-t border-border animate-fade-in space-y-4 text-sm">
       {p.ai && <AiBlock ai={p.ai} />}
 
       {p.is_liquid && p.adx != null && (
         <div className="grid grid-cols-1 gap-2.5">
-          <Gauge label="ADX · trend strength" value={p.adx} thresholds={[25, 40]} color="#a855f7" />
-          <Gauge label="RSI (14)" value={p.rsi} thresholds={[30, 70]} color="#06b6d4" />
+          <Gauge label="ADX · trend strength" value={p.adx} thresholds={[25, 40]} color="rgb(var(--accent))" />
+          <Gauge label="RSI (14)" value={p.rsi} thresholds={[30, 70]} color="rgb(var(--accent-2))" />
           <DiGauge plusDi={p.plus_di} minusDi={p.minus_di} />
         </div>
       )}

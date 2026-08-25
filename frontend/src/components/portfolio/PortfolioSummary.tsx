@@ -5,9 +5,9 @@ function Kpi({ className, label, value, sub }: { className: string; label: strin
   return (
     <div className={`${className} rounded-2xl p-5 shadow-glow relative overflow-hidden`}>
       <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10 blur-2xl" />
-      <div className="text-white/80 text-xs uppercase tracking-wide font-medium">{label}</div>
-      <div className="text-white text-2xl font-extrabold mt-1 tabular-nums">{value}</div>
-      <div className="text-white/70 text-[11px] mt-1">{sub}</div>
+      <div className="opacity-80 text-xs uppercase tracking-wide font-medium">{label}</div>
+      <div className="text-2xl font-extrabold mt-1 tabular-nums">{value}</div>
+      <div className="opacity-70 text-[11px] mt-1">{sub}</div>
     </div>
   );
 }

@@ -20,13 +20,13 @@ export function BookInsights({ data }: { data: PortfolioData }) {
         )}
       </div>
       {book ? (
-        <div className="space-y-1.5 text-sm border-t border-white/10 pt-2">
+        <div className="space-y-1.5 text-sm border-t border-border pt-2">
           {book.posture && <p className="text-txt-primary">{book.posture}</p>}
           {book.concentration && <p className="text-[12px] text-txt-secondary">🏷 {book.concentration}</p>}
           {book.clusters && book.clusters.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {book.clusters.map((c, i) => (
-                <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-txt-secondary">{c}</span>
+                <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-surface border border-border text-txt-secondary">{c}</span>
               ))}
             </div>
           )}
@@ -38,7 +38,7 @@ export function BookInsights({ data }: { data: PortfolioData }) {
           {book.analyzed_at && <div className="text-[10px] text-txt-secondary">AI read {timeAgo(book.analyzed_at)}</div>}
         </div>
       ) : (
-        <div className="text-[12px] text-txt-secondary border-t border-white/10 pt-2">Run Refresh to get book insights.</div>
+        <div className="text-[12px] text-txt-secondary border-t border-border pt-2">Run Refresh to get book insights.</div>
       )}
     </GlowCard>
   );

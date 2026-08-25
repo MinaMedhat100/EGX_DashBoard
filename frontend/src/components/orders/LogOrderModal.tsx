@@ -13,7 +13,7 @@ const TYPE_OPTIONS: { value: OrderType; label: string }[] = [
 ];
 
 const input =
-  'w-full bg-bg-card border border-white/15 rounded-lg px-3 py-2 text-sm focus:border-accent-cyan focus:outline-none';
+  'w-full bg-bg-card border border-border-strong rounded-lg px-3 py-2 text-sm focus:border-accent-cyan focus:outline-none';
 const today = () => new Date().toISOString().slice(0, 10);
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -153,7 +153,7 @@ export function LogOrderModal({
                       key={l}
                       onClick={() => setLot(l)}
                       className={`flex-1 rounded-lg py-2 text-xs font-semibold border transition ${
-                        lot === l ? 'gradient-purple text-white border-transparent' : 'border-white/15 text-txt-secondary'
+                        lot === l ? 'gradient-purple text-white border-transparent' : 'border-border-strong text-txt-secondary'
                       }`}
                     >
                       {l}
@@ -181,7 +181,7 @@ export function LogOrderModal({
                   key={t}
                   onClick={() => setTarget(t)}
                   className={`flex-1 rounded-lg py-2 text-sm font-semibold border transition ${
-                    target === t ? 'gradient-purple text-white border-transparent' : 'border-white/15 text-txt-secondary'
+                    target === t ? 'gradient-purple text-white border-transparent' : 'border-border-strong text-txt-secondary'
                   }`}
                 >
                   {t}
@@ -215,7 +215,7 @@ export function LogOrderModal({
                   key={m}
                   onClick={() => setEntryMode(m)}
                   className={`flex-1 rounded-lg py-2 text-sm font-semibold border transition capitalize ${
-                    entryMode === m ? 'gradient-purple text-white border-transparent' : 'border-white/15 text-txt-secondary'
+                    entryMode === m ? 'gradient-purple text-white border-transparent' : 'border-border-strong text-txt-secondary'
                   }`}
                 >
                   {m === 'classic' ? 'Classic' : 'ThndrX Bracket'}

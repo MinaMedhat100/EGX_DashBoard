@@ -111,6 +111,12 @@ body {
 :root[data-theme='paper'] .gradient-magenta {
   background-image: none;
   background-color: rgb(var(--accent-fill));
+  color: rgb(var(--accent-ink)); /* legible text on the solid accent fill (overrides text-white) */
+}
+/* flat themes carry no glow — neutralize the purple glow utility */
+:root[data-theme='desk'] .shadow-glow,
+:root[data-theme='paper'] .shadow-glow {
+  box-shadow: none;
 }
 :root[data-theme='desk'] .text-gradient,
 :root[data-theme='paper'] .text-gradient {

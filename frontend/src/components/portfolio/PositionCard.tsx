@@ -78,7 +78,7 @@ export function PositionCard({
           <span className="text-xl font-extrabold tracking-tight">{p.ticker}</span>
           <StatusBadge status={p.status_key} small />
           {p.tv_signal && p.tv_signal !== '—' && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-txt-secondary border border-white/10">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface text-txt-secondary border border-border">
               TV: {p.tv_signal}
             </span>
           )}
@@ -130,7 +130,7 @@ export function PositionCard({
         </div>
         <div className="text-right">
           {p.unrealized_pnl != null ? (
-            <span className={`font-semibold ${p.unrealized_pnl >= 0 ? 'text-status-green' : 'text-accent-magenta'}`}>
+            <span className={`font-semibold ${p.unrealized_pnl >= 0 ? 'text-status-green' : 'text-status-red'}`}>
               {fmtEgp(p.unrealized_pnl)} ({fmtPct(p.unrealized_pct)})
             </span>
           ) : (
@@ -146,7 +146,7 @@ export function PositionCard({
       {chips.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-1">
           {chips.map(([label, v]) => (
-            <span key={label} className="text-[11px] font-mono px-2 py-1 rounded-lg bg-white/5 border border-white/10">
+            <span key={label} className="text-[11px] font-mono px-2 py-1 rounded-lg bg-surface border border-border">
               <span className="text-txt-secondary">{label} </span>
               <span className="font-semibold">{v == null ? '—' : v.toFixed(1)}</span>
             </span>
@@ -207,18 +207,18 @@ export function PositionCard({
       )}
 
       {editingEntry && (
-        <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-white/5 border border-white/15">
+        <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-surface border border-border-strong">
           <div className="text-txt-secondary text-[11px] mb-1.5">Correct entry (shares &amp; avg cost)</div>
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
               <span className="text-[10px] uppercase text-txt-secondary">Shares</span>
               <input type="number" step="1" value={eShares} onChange={(e) => setEShares(e.target.value)}
-                className="mt-1 w-full bg-bg-card border border-white/15 rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none" />
+                className="mt-1 w-full bg-bg-card border border-border-strong rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none" />
             </label>
             <label className="block">
               <span className="text-[10px] uppercase text-txt-secondary">Avg cost</span>
               <input type="number" step="0.01" value={eAvg} onChange={(e) => setEAvg(e.target.value)}
-                className="mt-1 w-full bg-bg-card border border-white/15 rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none" />
+                className="mt-1 w-full bg-bg-card border border-border-strong rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none" />
             </label>
           </div>
           <div className="flex gap-2 mt-2">
@@ -256,7 +256,7 @@ export function PositionCard({
       )}
 
       {!updating && editing && (
-        <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-white/5 border border-white/15">
+        <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-surface border border-border-strong">
           <div className="text-txt-secondary text-[11px] mb-1.5">Set levels manually (EGP)</div>
           <div className="grid grid-cols-3 gap-2">
             {([['Stop', eStop, setEStop], ['T1', eT1, setET1], ['T2', eT2, setET2]] as const).map(
@@ -268,7 +268,7 @@ export function PositionCard({
                     step="0.01"
                     value={val}
                     onChange={(e) => set(e.target.value)}
-                    className="mt-1 w-full bg-bg-card border border-white/15 rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none"
+                    className="mt-1 w-full bg-bg-card border border-border-strong rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none"
                   />
                 </label>
               ),
