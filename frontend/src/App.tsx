@@ -12,7 +12,7 @@ import { GoldxPage } from './pages/GoldxPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { GlowCard } from './components/common/GlowCard';
 import { LogOrderModal } from './components/orders/LogOrderModal';
-import type { PortfolioData, LevelProposal, Position } from './types/portfolio';
+import type { PortfolioData, LevelProposal, Position, Opportunity, OrderPrefill } from './types/portfolio';
 
 function LoadingState() {
   return (
@@ -34,7 +34,7 @@ function Shell() {
   const refresh = useRefresh(applyPositions);
   const [tab, setTab] = useState<Tab>('portfolio');
   const [health, setHealth] = useState<{ bridge: boolean; model: string } | null>(null);
-  const [orderModal, setOrderModal] = useState<{ open: boolean; ticker: string }>({ open: false, ticker: '' });
+  const [orderModal, setOrderModal] = useState<{ open: boolean; ticker: string; prefill?: OrderPrefill }>({ open: false, ticker: '' });
   const [aiUpdating, setAiUpdating] = useState<string | null>(null);
   const [proposals, setProposals] = useState<Record<string, LevelProposal>>({});
   const [staleTicker, setStaleTicker] = useState<string | null>(null);
@@ -58,6 +58,20 @@ function Shell() {
   };
 
   const onLogOrder = (ticker: string) => setOrderModal({ open: true, ticker });
+
+  const onLogOpportunity = (o: Opportunity) =>
+    setOrderModal({
+      open: true,
+      ticker: o.ticker,
+      prefill: {
+        entryMode: 'bracket',
+        price: o.entry_zone?.[1] ?? o.entry_zone?.[0],
+        stop: o.stop,
+        t1: o.t1,
+        t2: o.t2,
+        split: o.split?.[0] ?? 50,
+      },
+    });
 
   const runAiUpdate = async (ticker: string) => {
     setAiUpdating(ticker);
@@ -152,7 +166,7 @@ function Shell() {
             />
           )}
           {data && tab === 'indices' && <IndicesPage />}
-          {data && tab === 'opportunities' && <OpportunitiesPage />}
+          {data && tab === 'opportunities' && <OpportunitiesPage onLogOpportunity={onLogOpportunity} />}
           {data && tab === 'goldx' && <GoldxPage />}
           {data && tab === 'history' && <HistoryPage data={data} />}
         </div>
@@ -162,6 +176,7 @@ function Shell() {
         open={orderModal.open}
         onClose={() => setOrderModal({ open: false, ticker: '' })}
         initialTicker={orderModal.ticker}
+        prefill={orderModal.prefill}
         positions={data?.positions ?? []}
         onApplied={onOrderApplied}
       />

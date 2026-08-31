@@ -7,6 +7,7 @@ import { MarketStrip } from '../components/opportunities/MarketStrip';
 import { ScanControls } from '../components/opportunities/ScanControls';
 import { WatchlistEditor } from '../components/opportunities/WatchlistEditor';
 import { OpportunityCard } from '../components/opportunities/OpportunityCard';
+import type { Opportunity } from '../types/portfolio';
 import { GlowCard } from '../components/common/GlowCard';
 
 function ScanningState({ phase }: { phase: 'scanning' | 'analyzing' }) {
@@ -28,7 +29,7 @@ function runLabel(ts: string) {
   return Number.isNaN(d.getTime()) ? ts : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function OpportunitiesPage() {
+export function OpportunitiesPage({ onLogOpportunity }: { onLogOpportunity?: (o: Opportunity) => void }) {
   const market = useMarketOverview();
   const scan = useScan();
   const history = useScanHistory();
@@ -148,7 +149,7 @@ export function OpportunitiesPage() {
       {!scan.busy && shownOpps && shownOpps.length > 0 && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {shownOpps.map((o, i) => (
-            <OpportunityCard key={`${o.ticker}-${i}`} o={o} />
+            <OpportunityCard key={`${o.ticker}-${i}`} o={o} onLog={onLogOpportunity} />
           ))}
         </div>
       )}

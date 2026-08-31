@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { api } from '../../api/client';
-import type { PortfolioData, Position } from '../../types/portfolio';
+import type { PortfolioData, Position, OrderPrefill } from '../../types/portfolio';
 
 type OrderType = 'STOP_OUT' | 'SELL' | 'BUY_NEW' | 'BUY_ADD';
 
@@ -29,12 +29,14 @@ export function LogOrderModal({
   open,
   onClose,
   initialTicker,
+  prefill,
   positions,
   onApplied,
 }: {
   open: boolean;
   onClose: () => void;
   initialTicker: string;
+  prefill?: OrderPrefill;
   positions: Position[];
   onApplied: (portfolio: PortfolioData, ticker: string, type: OrderType, toast: string) => void;
 }) {
@@ -78,8 +80,18 @@ export function LogOrderModal({
       setBT1('');
       setBT2('');
       setLot('A');
+      // Prefill from an opportunity card (bracket by default; classic seeds only price).
+      if (prefill) {
+        setType('BUY_NEW');
+        setEntryMode(prefill.entryMode);
+        if (prefill.price != null) setPrice(String(prefill.price));
+        if (prefill.split != null) setSplit(String(prefill.split));
+        if (prefill.stop != null) setBStop(String(prefill.stop));
+        if (prefill.t1 != null) setBT1(String(prefill.t1));
+        if (prefill.t2 != null) setBT2(String(prefill.t2));
+      }
     }
-  }, [open, initialTicker]);
+  }, [open, initialTicker, prefill]);
 
   const held = positions.find((p) => p.ticker === ticker.toUpperCase());
   const isLotAware = (type === 'SELL' || type === 'STOP_OUT') && !!held?.brackets;

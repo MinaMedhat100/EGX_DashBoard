@@ -100,6 +100,15 @@ export interface LevelProposal {
   t2: number | null;
 }
 
+export interface OrderPrefill {
+  entryMode: 'classic' | 'bracket';
+  price?: number;
+  stop?: number;
+  t1?: number;
+  t2?: number;
+  split?: number;
+}
+
 export interface RefreshAiResult {
   ok: boolean;
   position: Position;

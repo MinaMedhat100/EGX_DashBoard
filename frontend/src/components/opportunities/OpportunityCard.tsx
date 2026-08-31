@@ -19,7 +19,7 @@ function Lvl({ label, value, color }: { label: string; value: string; color: str
 
 const d1 = (n?: number) => (n == null ? '—' : n.toFixed(1));
 
-export function OpportunityCard({ o }: { o: Opportunity }) {
+export function OpportunityCard({ o, onLog }: { o: Opportunity; onLog?: (o: Opportunity) => void }) {
   const score = o.score ?? 0;
   const scoreColor = score >= 70 ? 'rgb(var(--status-green))' : score >= 50 ? 'rgb(var(--status-yellow))' : 'rgb(var(--muted))';
   const [splitOverride, setSplitOverride] = useState<number | null>(null);
@@ -126,6 +126,12 @@ export function OpportunityCard({ o }: { o: Opportunity }) {
           <span className="text-[10px] font-bold px-1 py-0.5 rounded gradient-purple text-white mr-1.5">AI</span>
           {o.thesis}
         </p>
+      )}
+
+      {onLog && o.stop != null && o.t1 != null && o.t2 != null && (
+        <button onClick={() => onLog(o)} className="btn-ghost mt-3 w-full py-1.5 text-xs">
+          ⚡ Log this as a bracket
+        </button>
       )}
     </GlowCard>
   );
