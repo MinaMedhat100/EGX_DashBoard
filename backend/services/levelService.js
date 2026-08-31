@@ -1,5 +1,6 @@
 // levelService.js — pure logic for adopting / proposing / committing position levels.
 import { evaluateStatus, buildAlert } from './statusEngine.js';
+import { openLots, syncBracketSummary } from './bracketService.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -9,12 +10,37 @@ function pos(v) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+// Open-lot-aware AI proposal for a bracketed position. Maps ai.suggested_* to the OPEN lots:
+// stop -> every open lot; t1 -> Lot A only if open; t2 -> Lot B only if open. Returns the proposal
+// only when a mapped level actually differs from the current open-lot value, else null.
+export function bracketProposal(position) {
+  const ai = position.ai || {};
+  const open = openLots(position.brackets);
+  if (!open.length) return null;
+  const a = position.brackets.lots.find((l) => l.id === 'A');
+  const b = position.brackets.lots.find((l) => l.id === 'B');
+  const aOpen = open.some((l) => l.id === 'A');
+  const bOpen = open.some((l) => l.id === 'B');
+  const stop = pos(ai.suggested_stop);
+  const t1 = aOpen ? pos(ai.suggested_t1) : null;
+  const t2 = bOpen ? pos(ai.suggested_t2) : null;
+  const curStop = Math.min(...open.map((l) => l.stop));
+  const diff =
+    (stop != null && round2(stop) !== round2(curStop)) ||
+    (t1 != null && a && round2(t1) !== round2(a.tp_price)) ||
+    (t2 != null && b && round2(t2) !== round2(b.tp_price));
+  return diff ? { stop, t1, t2 } : null;
+}
+
 // New position (levels_source 'pending') -> adopt AI's suggested levels.
 // Existing position -> return a proposal, leave real levels untouched.
 export function applyAiLevels(position) {
-  // Bracketed positions manage stop/targets per-lot (ThndrX two-lot brackets); the classic
-  // whole-position proposal/apply flow would desync the lots, so never offer it for a bracket.
-  if (position.brackets) return { applied: false };
+  // Bracketed positions manage stop/targets per OPEN lot; return an open-lot-aware proposal
+  // (verify at entry, manage the runner later) — never a classic whole-position apply.
+  if (position.brackets) {
+    const proposal = bracketProposal(position);
+    return proposal ? { applied: false, proposal } : { applied: false };
+  }
   const ai = position.ai || {};
   const stop = pos(ai.suggested_stop);
   const t1 = pos(ai.suggested_t1);
@@ -44,10 +70,21 @@ export function proposalDiffers(position, proposal) {
 }
 
 // User-confirmed levels (confirm chip or manual editor) -> commit + mark manual.
+// Bracketed positions write only to their OPEN lots (the real, editable ThndrX orders): stop to
+// every open lot, t1 to Lot A / t2 to Lot B when open; closed lots untouched; then resync mirrors.
 export function commitLevels(position, levels) {
   const stop = pos(levels.stop);
   const t1 = pos(levels.t1);
   const t2 = pos(levels.t2);
+  if (position.brackets) {
+    for (const l of openLots(position.brackets)) {
+      if (stop != null) l.stop = stop;
+      if (l.id === 'A' && t1 != null) l.tp_price = t1;
+      if (l.id === 'B' && t2 != null) l.tp_price = t2;
+    }
+    syncBracketSummary(position);
+    return;
+  }
   if (stop != null) position.stop_loss = stop;
   if (t1 != null) position.t1_price = t1;
   if (t2 != null) position.t2_price = t2;

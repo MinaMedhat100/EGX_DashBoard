@@ -1,6 +1,52 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyAiLevels, commitLevels, recomputeDerived, proposalDiffers } from '../services/levelService.js';
+import { applyAiLevels, commitLevels, recomputeDerived, proposalDiffers, bracketProposal } from '../services/levelService.js';
+import { makeBracket, syncBracketSummary, settleLot } from '../services/bracketService.js';
+
+function freshBracketPos(ai) {
+  const p = { avg_cost: 328, brackets: makeBracket(328, 15, 50, 296.5, 347, 369.2), ai };
+  syncBracketSummary(p);
+  return p;
+}
+
+test('bracketProposal: fresh bracket, AI differs -> proposal maps to both lots', () => {
+  const p = freshBracketPos({ suggested_stop: 308, suggested_t1: 337, suggested_t2: 375 });
+  assert.deepEqual(bracketProposal(p), { stop: 308, t1: 337, t2: 375 });
+});
+
+test('bracketProposal: AI agrees -> null (no chip)', () => {
+  const p = freshBracketPos({ suggested_stop: 296.5, suggested_t1: 347, suggested_t2: 369.2 });
+  assert.equal(bracketProposal(p), null);
+});
+
+test('bracketProposal: runner (Lot A filled) -> only stop + t2, t1 null', () => {
+  const p = freshBracketPos({ suggested_stop: 328, suggested_t1: 999, suggested_t2: 380 });
+  settleLot(p, 'A', { kind: 'tp', price: 347, date: 'd' }, p.avg_cost);
+  const prop = bracketProposal(p);
+  assert.equal(prop.stop, 328);
+  assert.equal(prop.t2, 380);
+  assert.equal(prop.t1, null);
+});
+
+test('applyAiLevels: bracket returns the open-lot proposal (no classic desync)', () => {
+  const p = freshBracketPos({ suggested_stop: 308, suggested_t1: 337, suggested_t2: 369.2 });
+  const r = applyAiLevels(p);
+  assert.equal(r.applied, false);
+  assert.deepEqual(r.proposal, { stop: 308, t1: 337, t2: 369.2 });
+  assert.equal(p.brackets.lots[0].stop, 296.5);
+});
+
+test('commitLevels: bracket re-derives OPEN lots only', () => {
+  const p = freshBracketPos({});
+  settleLot(p, 'A', { kind: 'tp', price: 347, date: 'd' }, p.avg_cost);
+  commitLevels(p, { stop: 328, t1: 999, t2: 380 });
+  const a = p.brackets.lots.find((l) => l.id === 'A');
+  const b = p.brackets.lots.find((l) => l.id === 'B');
+  assert.equal(a.tp_price, 347);
+  assert.equal(b.stop, 328);
+  assert.equal(b.tp_price, 380);
+  assert.equal(p.stop_loss, 328);
+});
 
 test('applyAiLevels adopts AI levels for a pending position', () => {
   const pos = { levels_source: 'pending', stop_loss: 0, t1_price: 0, t2_price: 0,
