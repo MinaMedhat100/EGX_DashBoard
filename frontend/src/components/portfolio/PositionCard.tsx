@@ -300,6 +300,9 @@ export function PositionCard({
             <span>T1 {fmtNum(p.t1_price)} → {proposal.t1 != null ? fmtNum(proposal.t1) : '—'}</span>
             <span>T2 {fmtNum(p.t2_price)} → {proposal.t2 != null ? fmtNum(proposal.t2) : '—'}</span>
           </div>
+          {p.brackets && (
+            <div className="text-[10px] text-txt-secondary mt-1">Apply after you edit the matching orders in ThndrX.</div>
+          )}
           <div className="flex gap-2 mt-2">
             <button
               onClick={() => onApplyLevels(p.ticker, {

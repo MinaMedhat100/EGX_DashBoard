@@ -68,8 +68,11 @@ function Shell() {
       else if (r.proposal) {
         setProposals((m) => ({ ...m, [ticker]: r.proposal as LevelProposal }));
         toast(`${ticker}: AI proposed updated levels — review on the card`, 'success');
+      } else if (r.error) {
+        toast(`${ticker}: AI couldn't set levels (${r.error})`, 'error');
       } else {
-        toast(`${ticker}: AI couldn't set levels${r.error ? ` (${r.error})` : ''}`, 'error');
+        // AI ran but proposed no change (e.g. a bracket whose placed levels it verified as good).
+        toast(`${ticker}: AI reviewed — levels look good`, 'success');
       }
       setStaleTicker(ticker);
     } catch (e) {
@@ -82,10 +85,9 @@ function Shell() {
   const onOrderApplied = (portfolio: PortfolioData, ticker: string, _type: string, msg: string) => {
     setData(portfolio);
     toast(msg, 'success');
-    // Bracket entries already carry user-set per-lot levels — skip the classic AI level-setter
-    // (which only makes sense for a 'pending' single-target position).
-    const posn = portfolio.positions.find((p) => p.ticker === ticker);
-    if (ticker && !posn?.brackets) runAiUpdate(ticker);
+    // Run the AI on the new position — classic: set pending levels; bracket: verify the placed
+    // levels (and later manage the runner), surfacing an advisory Apply chip only on disagreement.
+    if (ticker) runAiUpdate(ticker);
   };
 
   const onApplyLevels = async (ticker: string, levels: { stop: number; t1: number; t2: number }) => {
