@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.2.0
+
+**Opportunity → bracket workflow + bracket AI verification.**
+- **Log from an opportunity** — each opportunity (and watchlist) card gets a **"Log this as a bracket"**
+  button that opens the order modal pre-filled from the card: entry price (editable), stop / T1 / T2, and
+  the AI split. You only set shares. The Classic toggle is still available.
+- **The AI now verifies bracket levels** — logging a bracket triggers the per-position AI (like classic).
+  It reads your placed levels and either confirms them ("levels look good") or, on a real difference,
+  shows an advisory **Apply AI levels?** chip. Apply writes only to the **open lots** (the real, editable
+  ThndrX orders) and re-syncs — so on later refreshes it also **manages the runner**: after Lot A fills,
+  the AI can propose a trailed stop and an adjusted T2 for Lot B, which you apply after editing in ThndrX.
+  (Bracket levels never get silently overwritten — the dashboard stays in sync with your resting orders.)
+
 ## 2.1.0
 
 **Theme system — three switchable, persistent themes.** A segmented control in the sidebar footer
