@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.1
+
+**Bracket SELL modal — remove the redundant Target toggle.** On a two-lot bracket position, the SELL
+order modal was showing both the Lot picker (A / B / ALL) and a T1 / T2 Target toggle. The lot already
+encodes the target (Lot A → T1, Lot B → T2) and the backend ignores `target` for brackets entirely, so
+the toggle was dead, contradictory UI. It's now hidden whenever the lot picker is shown (classic SELL is
+unchanged), and the ignored `target` field is no longer sent for brackets. The lot picker also spans the
+full modal width so its three buttons are no longer crowded beside the Price field.
+
 ## 2.2.0
 
 **Opportunity → bracket workflow + bracket AI verification.**

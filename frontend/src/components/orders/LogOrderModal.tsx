@@ -16,9 +16,9 @@ const input =
   'w-full bg-bg-card border border-border-strong rounded-lg px-3 py-2 text-sm focus:border-accent-cyan focus:outline-none';
 const today = () => new Date().toISOString().slice(0, 10);
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <label className="block">
+    <label className={`block${className ? ` ${className}` : ''}`}>
       <span className="text-[11px] uppercase tracking-wide text-txt-secondary">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
@@ -110,7 +110,9 @@ export function LogOrderModal({
         notes,
       };
       if (type === 'SELL') {
-        payload.target = target;
+        // For a bracket, the lot encodes the target (A→T1, B→T2), so the backend
+        // ignores `target`; only send it for a classic SELL.
+        if (!held?.brackets) payload.target = target;
         payload.raise_stop_be = raiseBe;
       }
       if (type === 'STOP_OUT' && fifoCost) payload.fifo_cost = Number(fifoCost);
@@ -156,7 +158,7 @@ export function LogOrderModal({
             <input type="date" className={input} value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           {isLotAware ? (
-            <Field label="Lot">
+            <Field label="Lot" className="col-span-2">
               <div className="flex gap-2">
                 {(['A', 'B', 'ALL'] as const).map((l) => {
                   const lotInfo = l !== 'ALL' ? held?.brackets?.lots.find((x) => x.id === l) : undefined;
@@ -185,7 +187,7 @@ export function LogOrderModal({
           </Field>
         </div>
 
-        {type === 'SELL' && (
+        {type === 'SELL' && !isLotAware && (
           <Field label="Target">
             <div className="flex gap-2">
               {(['T1', 'T2'] as const).map((t) => (
