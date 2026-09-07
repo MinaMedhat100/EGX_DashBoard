@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.3.0
+
+**The price range bar is back on bracket cards.** Two-lot bracket positions previously showed only
+two text chips — the visual bar was skipped entirely. They now draw the same bar as classic cards,
+on a shared renderer, with lot-aware markers:
+- **`SL · AVG · NOW · T1·A · T2·B`** on one price axis. The stop marker comes from the lots still
+  resting in ThndrX, so a settled lot's stop drops off; while the open lots agree it's a single `SL`,
+  and if they ever diverge it splits into `SL·A` / `SL·B`.
+- **The dashed "path to target" now follows the open lot.** After Lot A banks, the dashes run
+  NOW → T2 instead of staying stuck on a target you already took. (The classic bar hardcoded T1.)
+- **Filled targets stay visible** — a banked lot shows a green ✓ dot, a stopped lot keeps its target
+  marked `✗` at low opacity so you can still see the level it never reached.
+- Lot chips are kept underneath for shares and state; a settled lot now shows its **exit fill**
+  instead of the stale stop/TP it no longer has. Chips still render when there's no live price.
+
 ## 2.2.1
 
 **Bracket SELL modal — remove the redundant Target toggle.** On a two-lot bracket position, the SELL
