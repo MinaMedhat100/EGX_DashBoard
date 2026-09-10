@@ -9,6 +9,10 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   server: {
+    // Bind 0.0.0.0 so the dashboard is reachable from another device on the same LAN
+    // (phone -> http://<this-machine-ip>:5173). /api is still proxied locally to 3001,
+    // so the Express backend and the FastAPI bridge stay off the network.
+    host: true,
     port: 5173,
     proxy: {
       '/api': {

@@ -1,11 +1,16 @@
 {
   "compilerOptions": {
     "composite": true,
+    // A referenced project must emit (TS6310), but the emit must not land beside the source:
+    // Vite resolves vite.config.js BEFORE vite.config.ts, so an emitted .js silently shadows
+    // the real config and freezes it at whatever the last build produced. Send it out of tree.
+    "outDir": "./node_modules/.tmp/config",
+    "tsBuildInfoFile": "./node_modules/.tmp/config/tsconfig.node.tsbuildinfo",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "package.json"]
 }

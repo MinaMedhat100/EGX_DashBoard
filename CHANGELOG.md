@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.3.1
+
+**Open the dashboard from your phone on the same network.** The Vite dev server now binds all
+interfaces (`host: true`), so `npm run dev` prints a Network URL — browse to `http://<pc-ip>:5173`
+from a phone on the same Wi-Fi. Only the frontend is exposed: the app fetches relative `/api` paths
+which Vite proxies locally to Express on 3001, and the FastAPI bridge stays on 127.0.0.1, so neither
+needs to face the network. Windows Firewall must allow inbound TCP 5173 on the Private profile.
+
+Note that the dashboard has **no authentication** — anyone on that network can read the book and log
+orders. Fine on a trusted home network; think twice on a shared one.
+
+**Fixed: a compiled `vite.config.js` was silently shadowing `vite.config.ts`.** Stale `tsc` output
+(`frontend/vite.config.js` + `.d.ts`) sat beside the real config, and Vite resolves `.js` *before*
+`.ts` — so the dev server had been reading a months-old copy and every edit to `vite.config.ts` was
+ignored. The two happened to agree, so nothing broke visibly, but the next config change would have.
+`tsconfig.node.json` now emits to `node_modules/.tmp/config` (`outDir` + `tsBuildInfoFile`) instead
+of beside the source, so the shadowing can't come back on the next build.
+
 ## 2.3.0
 
 **The price range bar is back on bracket cards.** Two-lot bracket positions previously showed only
