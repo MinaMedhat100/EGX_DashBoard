@@ -233,6 +233,8 @@ export interface ScanRun {
   opportunities: Opportunity[];
   market: MarketOverview | null;
   ai_fallback: boolean;
+  /** why the AI step failed when ai_fallback is true (absent on runs saved before v2.3.2) */
+  ai_error?: string | null;
   scanned: number;
   passed: number;
   mode?: 'market' | 'watchlist';
@@ -252,6 +254,7 @@ export interface ScanResponse {
   opportunities: Opportunity[];
   market: MarketOverview | null;
   ai_fallback: boolean;
+  ai_error?: string | null;
   note: string | null;
   raw: { scanned: number; passed: number };
   model: string;

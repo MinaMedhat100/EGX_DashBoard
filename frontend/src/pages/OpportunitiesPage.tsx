@@ -58,6 +58,9 @@ export function OpportunitiesPage({ onLogOpportunity }: { onLogOpportunity?: (o:
   const viewing = history.selected; // non-null => showing a saved run (read-only)
   const shownOpps = viewing ? viewing.opportunities : scan.opportunities;
   const shownMarket = viewing ? viewing.market : (scan.market ?? market.data);
+  // when the AI step failed, say why instead of only swapping the ranking (saved runs carry it too)
+  const aiFailed = viewing ? viewing.ai_fallback : !!scan.meta?.aiFallback;
+  const aiReason = viewing ? viewing.ai_error : scan.meta?.aiError;
 
   return (
     <div className="space-y-5">
@@ -121,6 +124,12 @@ export function OpportunitiesPage({ onLogOpportunity }: { onLogOpportunity?: (o:
             {scan.meta.aiFallback ? 'score (AI unavailable)' : `AI (${scan.meta.model})`}
           </div>
         )
+      )}
+
+      {aiFailed && !scan.busy && (
+        <div className="text-xs rounded-lg px-3 py-2 bg-status-orange/10 border border-status-orange/30 text-status-orange">
+          ⚠ AI ranking unavailable{aiReason ? ` — ${aiReason}` : ''}. Picks are shown in screener-score order.
+        </div>
       )}
 
       {/* surface bridge notes (e.g. "no live data for: X") even when some names resolved */}

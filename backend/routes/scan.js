@@ -8,7 +8,23 @@ import { appendRun, listRuns, getRun, clearRuns } from '../services/scanHistoryS
 
 const router = Router();
 
-export function deterministicRank(candidates, cap = 8) {
+// The AI step used to fall back to the deterministic ranking silently, so an expired Claude login,
+// a timeout and an unparseable reply all looked identical. Turn the error into a short reason the
+// Opportunities page can show next to the fallback.
+export function aiFailureReason(err) {
+  const msg = String(err?.message ?? err ?? '').trim();
+  if (!msg) return 'unknown AI error';
+  if (/not logged in|\/login/i.test(msg)) return 'Claude CLI is not logged in — run `claude` in a terminal, then /login';
+  if (/timed out/i.test(msg)) return 'Claude analysis timed out';
+  if (/spawn claude failed|ENOENT/i.test(msg)) return 'Claude CLI not found on PATH';
+  if (/empty AI result|empty model output|no JSON|bad claude envelope|JSON/i.test(msg)) return 'AI returned an unreadable result';
+  return msg.slice(0, 160);
+}
+
+export function deterministicRank(candidates, cap = 8, reason = null) {
+  const thesis = reason
+    ? `(deterministic ranking — AI unavailable: ${reason})`
+    : '(deterministic ranking — AI analysis unavailable)';
   return (candidates || [])
     .map((c) => ({
       ticker: c.ticker,
@@ -27,7 +43,7 @@ export function deterministicRank(candidates, cap = 8) {
       t1_pct: c.suggested?.t1_pct,
       t2_pct: c.suggested?.t2_pct,
       rr: c.suggested?.rr,
-      thesis: '(deterministic ranking — AI analysis unavailable)',
+      thesis,
       conviction: 3,
     }))
     .sort((a, b) => (b.score || 0) - (a.score || 0))
@@ -59,6 +75,7 @@ router.post('/scan-opportunities', async (req, res, next) => {
     const candidates = scan.candidates?.length ? scan.candidates : scan.all_scanned;
     let opportunities = [];
     let fallback = false;
+    let aiError = null;
     // Skip the AI call entirely when the screener returned nothing (e.g. pre-market).
     if (candidates && candidates.length) {
       try {
@@ -67,8 +84,10 @@ router.post('/scan-opportunities', async (req, res, next) => {
         ]);
         opportunities = await analyzeOpportunities(candidates, market, exclude, model, { context: { news, regime } });
         if (!opportunities?.length) throw new Error('empty AI result');
-      } catch {
-        opportunities = deterministicRank(scan.candidates);
+      } catch (e) {
+        aiError = aiFailureReason(e);
+        console.error(`[scan] AI ranking failed, using deterministic fallback: ${e?.message ?? e}`);
+        opportunities = deterministicRank(scan.candidates, 8, aiError);
         fallback = true;
       }
     }
@@ -87,6 +106,7 @@ router.post('/scan-opportunities', async (req, res, next) => {
       opportunities,
       market,
       ai_fallback: fallback,
+      ai_error: aiError,
       scanned: scan.scanned_count,
       passed: scan.passed_count,
       mode: 'market',
@@ -99,6 +119,7 @@ router.post('/scan-opportunities', async (req, res, next) => {
       opportunities,
       market,
       ai_fallback: fallback,
+      ai_error: aiError,
       note: scan.note ?? null,
       raw: { scanned: scan.scanned_count, passed: scan.passed_count },
       model,
@@ -131,6 +152,7 @@ router.post('/scan-watchlist', async (req, res, next) => {
     const candidates = scan.candidates || [];
     let opportunities = [];
     let fallback = false;
+    let aiError = null;
     if (candidates.length) {
       try {
         const [news, regime] = await Promise.all([
@@ -138,8 +160,10 @@ router.post('/scan-watchlist', async (req, res, next) => {
         ]);
         opportunities = await analyzeOpportunities(candidates, market, [], model, { mode: 'watchlist', context: { news, regime } });
         if (!opportunities?.length) throw new Error('empty AI result');
-      } catch {
-        opportunities = deterministicRank(candidates, candidates.length); // no cap for watchlist
+      } catch (e) {
+        aiError = aiFailureReason(e);
+        console.error(`[scan-watchlist] AI ranking failed, using deterministic fallback: ${e?.message ?? e}`);
+        opportunities = deterministicRank(candidates, candidates.length, aiError); // no cap for watchlist
         fallback = true;
       }
     }
@@ -155,14 +179,14 @@ router.post('/scan-watchlist', async (req, res, next) => {
     }
 
     const run = await appendRun({
-      params, model, opportunities, market, ai_fallback: fallback,
+      params, model, opportunities, market, ai_fallback: fallback, ai_error: aiError,
       scanned: scan.scanned_count, passed: scan.passed_count,
       mode: 'watchlist', watchlist_tickers: tickers,
     });
 
     res.json({
       ok: true, run_id: run.id, params, opportunities, market,
-      ai_fallback: fallback, note: scan.note ?? null,
+      ai_fallback: fallback, ai_error: aiError, note: scan.note ?? null,
       raw: { scanned: scan.scanned_count, passed: scan.passed_count },
       model, mode: 'watchlist', timestamp: run.timestamp,
     });

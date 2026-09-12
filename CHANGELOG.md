@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.3.2
+
+**Opportunities now say *why* the AI ranking is unavailable.** When the AI step failed, the scan
+quietly fell back to screener-score order and every card read "AI analysis unavailable" — an expired
+Claude login, a timeout, and an unreadable reply all looked the same. The page now shows an orange
+notice with the actual cause (e.g. *"Claude CLI is not logged in — run `claude` in a terminal, then
+/login"*), each fallback card carries the reason, the backend logs the error, and saved runs keep it.
+Applies to market and watchlist scans.
+
+**STOP-OUT opens with the stop already filled in.** Logging a STOP-OUT on a held position pre-fills
+Price with its resting stop — a classic position's stop, or the selected lot's stop on a bracket
+(following A / B as you switch; ALL uses the stop the open lots share). The label marks it as
+*current stop*. A price you type is never overwritten, switching away from STOP-OUT clears an
+auto-filled stop so a SELL can't inherit it, and a position with no stop leaves Price empty.
+
+**Sidebar note updated.** The old single-rule Thndr note is now a short legend of both position
+styles: **Classic** (one Thndr order per stock — stop-loss OR limit sell) and **Bracket** (ThndrX two
+lots, A→T1 and B→T2, each with its own stop + take-profit).
+
 ## 2.3.1
 
 **Open the dashboard from your phone on the same network.** The Vite dev server now binds all

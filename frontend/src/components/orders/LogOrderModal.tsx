@@ -16,6 +16,21 @@ const input =
   'w-full bg-bg-card border border-border-strong rounded-lg px-3 py-2 text-sm focus:border-accent-cyan focus:outline-none';
 const today = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * The resting stop a STOP-OUT would have filled at, used to pre-fill Price: a classic position's
+ * stop, or the chosen lot's stop on a bracket (ALL = the lowest stop among the lots still open,
+ * which is the shared stop whenever they agree). null when there is no live stop to offer.
+ */
+function stopFor(p: Position | undefined, lot: 'A' | 'B' | 'ALL'): number | null {
+  if (!p) return null;
+  if (p.brackets) {
+    const open = p.brackets.lots.filter((l) => !l.tp_hit && !l.stopped && l.stop > 0);
+    if (lot !== 'ALL') return open.find((l) => l.id === lot)?.stop ?? null;
+    return open.length ? Math.min(...open.map((l) => l.stop)) : null;
+  }
+  return p.stop_loss > 0 ? p.stop_loss : null;
+}
+
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <label className={`block${className ? ` ${className}` : ''}`}>
@@ -60,14 +75,23 @@ export function LogOrderModal({
   const [bT2, setBT2] = useState('');
   // Lot-aware exit (SELL / STOP_OUT on a bracketed position).
   const [lot, setLot] = useState<'A' | 'B' | 'ALL'>('A');
+  // true while Price holds an auto-filled stop rather than something the user typed
+  const [priceAuto, setPriceAuto] = useState(false);
 
   // Prefill from the originating card / reset when opened.
   useEffect(() => {
     if (open) {
+      const initialType: OrderType = initialTicker ? 'STOP_OUT' : 'BUY_NEW';
       setTicker(initialTicker);
-      setType(initialTicker ? 'STOP_OUT' : 'BUY_NEW');
+      setType(initialType);
       setShares('');
-      setPrice('');
+      // a STOP-OUT from a held position's card opens with that position's resting stop as Price
+      const stop =
+        initialType === 'STOP_OUT'
+          ? stopFor(positions.find((p) => p.ticker === initialTicker.toUpperCase()), 'A')
+          : null;
+      setPrice(stop != null ? String(stop) : '');
+      setPriceAuto(stop != null);
       setDate(today());
       setNotes('');
       setTarget('T1');
@@ -84,16 +108,37 @@ export function LogOrderModal({
       if (prefill) {
         setType('BUY_NEW');
         setEntryMode(prefill.entryMode);
-        if (prefill.price != null) setPrice(String(prefill.price));
+        setPrice(prefill.price != null ? String(prefill.price) : '');
+        setPriceAuto(false);
         if (prefill.split != null) setSplit(String(prefill.split));
         if (prefill.stop != null) setBStop(String(prefill.stop));
         if (prefill.t1 != null) setBT1(String(prefill.t1));
         if (prefill.t2 != null) setBT2(String(prefill.t2));
       }
     }
+    // positions is read at open time only: re-running on a portfolio update would wipe the form
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialTicker, prefill]);
 
   const held = positions.find((p) => p.ticker === ticker.toUpperCase());
+
+  // Keep an auto-filled stop in step with type / ticker / lot changes, but never overwrite a price
+  // the user typed. Leaving STOP-OUT clears an auto-filled stop so a SELL can't inherit it.
+  const syncAutoStop = (nextType: OrderType, nextTicker: string, nextLot: 'A' | 'B' | 'ALL') => {
+    const stop =
+      nextType === 'STOP_OUT'
+        ? stopFor(positions.find((p) => p.ticker === nextTicker.toUpperCase()), nextLot)
+        : null;
+    if (stop != null) {
+      if (priceAuto || price === '') {
+        setPrice(String(stop));
+        setPriceAuto(true);
+      }
+    } else if (priceAuto) {
+      setPrice('');
+      setPriceAuto(false);
+    }
+  };
   const isLotAware = (type === 'SELL' || type === 'STOP_OUT') && !!held?.brackets;
   const addBlocked = type === 'BUY_ADD' && !!held?.brackets;
 
@@ -141,7 +186,15 @@ export function LogOrderModal({
     <Modal open={open} onClose={onClose} title="⚡ Log Order">
       <div className="space-y-3">
         <Field label="Order Type">
-          <select className={input} value={type} onChange={(e) => setType(e.target.value as OrderType)}>
+          <select
+            className={input}
+            value={type}
+            onChange={(e) => {
+              const next = e.target.value as OrderType;
+              setType(next);
+              syncAutoStop(next, ticker, lot);
+            }}
+          >
             {TYPE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value} className="bg-bg-card">
                 {o.label}
@@ -152,7 +205,16 @@ export function LogOrderModal({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Ticker">
-            <input className={input} value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())} placeholder="CANA" />
+            <input
+              className={input}
+              value={ticker}
+              onChange={(e) => {
+                const next = e.target.value.toUpperCase();
+                setTicker(next);
+                syncAutoStop(type, next, lot);
+              }}
+              placeholder="CANA"
+            />
           </Field>
           <Field label="Date">
             <input type="date" className={input} value={date} onChange={(e) => setDate(e.target.value)} />
@@ -165,7 +227,10 @@ export function LogOrderModal({
                   return (
                     <button
                       key={l}
-                      onClick={() => setLot(l)}
+                      onClick={() => {
+                        setLot(l);
+                        syncAutoStop(type, ticker, l);
+                      }}
                       className={`flex-1 rounded-lg py-2 text-xs font-semibold border transition ${
                         lot === l ? 'gradient-purple text-white border-transparent' : 'border-border-strong text-txt-secondary'
                       }`}
@@ -182,8 +247,18 @@ export function LogOrderModal({
               <input type="number" className={input} value={shares} onChange={(e) => setShares(e.target.value)} placeholder="125" />
             </Field>
           )}
-          <Field label="Price (EGP)">
-            <input type="number" step="0.01" className={input} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="38.00" />
+          <Field label={priceAuto ? 'Price (EGP) · current stop' : 'Price (EGP)'}>
+            <input
+              type="number"
+              step="0.01"
+              className={input}
+              value={price}
+              onChange={(e) => {
+                setPrice(e.target.value);
+                setPriceAuto(false);
+              }}
+              placeholder="38.00"
+            />
           </Field>
         </div>
 

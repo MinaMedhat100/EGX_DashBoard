@@ -106,8 +106,16 @@ export function Sidebar({
         <div className="text-xs rounded-lg px-2.5 py-1.5 bg-status-green/10 border border-status-green/30 text-status-green font-medium">
           Realized: {fmtEgp(data?.realized_pnl)}
         </div>
-        <div className="text-[10px] text-txt-secondary leading-snug border-t border-border pt-2">
-          Thndr: ONE active order per stock — stop-loss OR limit sell, not both.
+        {/* the two position styles the book tracks */}
+        <div className="text-[10px] text-txt-secondary leading-snug border-t border-border pt-2 space-y-1">
+          <div>
+            <span className="font-semibold text-txt-primary">Classic</span> · one Thndr order per stock — stop-loss OR
+            limit sell, not both.
+          </div>
+          <div>
+            <span className="font-semibold text-txt-primary">Bracket</span> · ThndrX two lots (A→T1, B→T2), each with
+            its own stop + take-profit (OCO).
+          </div>
         </div>
         <ThemeSwitch />
         <div className="text-[10px] text-txt-secondary text-right">v{__APP_VERSION__}</div>
