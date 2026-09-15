@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.4.0
+
+**Stops that respect volatility — and a guard on the AI's stop suggestions.** From the SPIN
+post-mortem: the AI trailed a stop below the entry, before T1, inside one day's normal range, and the
+position was stopped out on noise.
+- **The AI now sees ATR.** The bridge passes TradingView's daily ATR (and ATR as a % of price) to every
+  analysis. Scans keep stops at least 1.5× ATR below entry, and the baseline levels used when the AI is
+  unavailable do the same (still capped at 10%).
+- **A guard on AI stop suggestions for held positions.** A Refresh no longer offers a stop that moves
+  down, sits at or above the price, raises below your entry before T1, or lands within 1.5× ATR of the
+  price — raising to break-even after T1 is always allowed, and a position with no stop can still get
+  its first one. A held-back suggestion is left out of the Apply chip (target changes still come
+  through), the AI panel shows **"⚠ Held back: …"** with the reason, and the next Refresh tells the AI
+  what was held back. Your own manual stop edits are never blocked.
+
 ## 2.3.2
 
 **Opportunities now say *why* the AI ranking is unavailable.** When the AI step failed, the scan
