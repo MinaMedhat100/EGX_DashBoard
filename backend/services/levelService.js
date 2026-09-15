@@ -10,6 +10,55 @@ function pos(v) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+// Minimum distance between a stop and the live price, in daily ATRs. Tighter stops sit inside
+// ordinary daily noise (the SPIN lesson, Sep 2026). Mirrors STOP_ATR_MULT in mcp_bridge/main.py.
+export const STOP_ATR_MULT = 1.5;
+
+const fmt2 = (n) => round2(n).toFixed(2);
+
+// Deterministic check on an AI stop suggestion for a HELD position (never the user's own edits).
+// First failure wins: (1) never move a stop down; (2) never at/above the live price; (3) before T1,
+// only raise to break-even or higher; (4) stay >= STOP_ATR_MULT x ATR below the live price — except a
+// post-T1 raise up to break-even, which is the strategy's own rule. Rules 1, 3, 4 guard changes to an
+// EXISTING stop: a position with no stop only gets rule 2 (holding back its first stop would leave it
+// unprotected). Missing inputs skip only the rule that needs them.
+export function guardStopChange(position, proposedStop) {
+  const proposed = pos(proposedStop);
+  if (proposed == null) return { ok: true };
+
+  let current;
+  let pastT1;
+  if (position.brackets) {
+    const open = openLots(position.brackets);
+    current = open.length ? pos(Math.min(...open.map((l) => l.stop))) : null;
+    pastT1 = !!(position.brackets.lots || []).find((l) => l.id === 'A')?.tp_hit;
+  } else {
+    current = pos(position.stop_loss);
+    pastT1 = !!position.t1_hit;
+  }
+  if (current != null && round2(proposed) === round2(current)) return { ok: true };
+
+  const avg = pos(position.avg_cost);
+  const live = pos(position.live_price);
+  const atr = pos(position.indicators?.atr);
+  const held = (reason) => ({ ok: false, suggested: round2(proposed), reason });
+
+  if (current != null && proposed < current) {
+    return held(`would move the stop down from ${fmt2(current)} — stops only move up`);
+  }
+  if (live != null && proposed >= live) return held(`at or above the live price ${fmt2(live)}`);
+  if (current == null) return { ok: true };
+  if (!pastT1 && avg != null && proposed < avg) {
+    return held(`below your ${fmt2(avg)} entry before T1 — a raise here protects no profit`);
+  }
+  const breakEvenAfterT1 = pastT1 && avg != null && proposed <= avg;
+  if (atr != null && live != null && !breakEvenAfterT1 && live - proposed < STOP_ATR_MULT * atr) {
+    const mult = ((live - proposed) / atr).toFixed(1);
+    return held(`only ${mult}× ATR below the live price ${fmt2(live)} (minimum ${STOP_ATR_MULT}×)`);
+  }
+  return { ok: true };
+}
+
 // Open-lot-aware AI proposal for a bracketed position. Maps ai.suggested_* to the OPEN lots:
 // stop -> every open lot; t1 -> Lot A only if open; t2 -> Lot B only if open. Returns the proposal
 // only when a mapped level actually differs from the current open-lot value, else null.
