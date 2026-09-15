@@ -71,3 +71,23 @@ test('opportunityPrompt asks for a per-stock split', () => {
   assert.match(p, /"split"/);
   assert.match(p, /split_reason/);
 });
+
+test('portfolioPrompt carries ATR, the stop rules and prior_ai.stop_guard (v2.4.0)', () => {
+  const positions = [{ ticker: 'SPIN', avg_cost: 19.16, shares: 550, live_price: 19.71, stop_loss: 17.6,
+    t1_price: 20.79, t2_price: 22.6, indicators: { price: 19.71, atr: 0.95, atr_pct: 4.82 },
+    ai: { recommendation: 'HOLD', stop_guard: { suggested: 18.4, reason: 'below your 19.16 entry before T1' } } }];
+  const p = portfolioPrompt(positions, 'S', {});
+  assert.match(p, /"atr": 0\.95/);
+  assert.match(p, /within 1\.5x ATR/);
+  assert.match(p, /Never lower an existing stop/);
+  assert.match(p, /break-even \(avg_cost\) or higher/);
+  assert.match(p, /exceed the previous swing high/);
+  assert.match(p, /below your 19\.16 entry before T1/);
+});
+
+test('opportunityPrompt tells the AI to keep stops at least 1.5x ATR below entry (v2.4.0)', () => {
+  const cands = [{ ticker: 'SPIN', indicators: { atr: 0.95, atr_pct: 4.96 }, suggested: {} }];
+  const p = opportunityPrompt(cands, {}, [], 'S', 'market', {});
+  assert.match(p, /"atr": 0\.95/);
+  assert.match(p, /at least 1\.5x ATR below the entry/);
+});

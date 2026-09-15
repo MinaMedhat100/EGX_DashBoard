@@ -102,7 +102,7 @@ function regimeLines(regime) {
 const priorAiSlim = (ai) => (ai ? {
   recommendation: ai.recommendation, conviction: ai.conviction, thesis: ai.thesis,
   key_risk: ai.key_risk, suggested_stop: ai.suggested_stop, suggested_t1: ai.suggested_t1,
-  suggested_t2: ai.suggested_t2, analyzed_at: ai.analyzed_at,
+  suggested_t2: ai.suggested_t2, analyzed_at: ai.analyzed_at, stop_guard: ai.stop_guard ?? null,
 } : null);
 
 export function portfolioPrompt(positions, strategy, context = {}) {
@@ -162,6 +162,15 @@ export function portfolioPrompt(positions, strategy, context = {}) {
     '',
     'Rules: suggested_stop just below structural support (EMA50 / recent swing / BB lower);',
     'suggested_t1 near the nearest resistance or BB upper; suggested_t2 the next resistance.',
+    'STOP RULES (enforced by the dashboard — a suggestion that breaks them is held back, not applied):',
+    '- VOLATILITY: live.atr is the daily ATR (EGP) and live.atr_pct its % of price. Never suggest a stop',
+    '  within 1.5x ATR of live_price — tighter stops sit inside normal daily noise.',
+    '- Never lower an existing stop.',
+    '- Before T1 fills, only raise the stop to break-even (avg_cost) or higher; after T1, break-even is',
+    '  always allowed. A raise that stays below entry protects no profit.',
+    '- A "new swing high" must exceed the previous swing high; a lower high after a rejection is not one.',
+    '- If prior_ai.stop_guard is set, the dashboard held back your last stop suggestion for the reason',
+    '  given. Do not repeat it unless that reason no longer applies; otherwise keep the current stop.',
     'Numbers in EGP rounded to 2 decimals. For illiquid / no-live positions (EGX30ETF, BAL, CCB),',
     'base the call on context (e.g. exit deadlines) and you may leave suggested_* as their current',
     'stop/t1/t2.',
@@ -275,6 +284,8 @@ export function opportunityPrompt(candidates, market, exclude, strategy, mode = 
     'one; honor the MARKET REGIME above (raise the entry bar in Risk-Off).',
     'Prefer ADX strong (>40), +DI clearly > -DI, RSI 40-70, MACD bullish, R:R to T2 >= 2 where',
     'possible. Refine the baseline levels to sensible structure-based stops/targets.',
+    'VOLATILITY — indicators.atr is the daily ATR (EGP) and indicators.atr_pct its % of price. Place the stop',
+    'at least 1.5x ATR below the entry; if structure forces a tighter stop, lower conviction and say so.',
     'BRACKET SPLIT — recommend how to split a ThndrX two-lot entry: Lot A (take-profit at T1) vs Lot B',
     '(runner to T2), as [aPct, bPct] summing to 100. Weight Lot B higher (e.g. [40,60]) on high conviction',
     '+ strong ADX + weekly-aligned + wide room to T2; weight Lot A higher (e.g. [60,40]/[70,30]) on lower',
