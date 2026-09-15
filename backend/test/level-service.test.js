@@ -9,9 +9,19 @@ function freshBracketPos(ai) {
   return p;
 }
 
-test('bracketProposal: fresh bracket, AI differs -> proposal maps to both lots', () => {
+test('bracketProposal: fresh bracket, AI differs -> T1/T2 proposed, below-entry stop raise held back', () => {
   const p = freshBracketPos({ suggested_stop: 308, suggested_t1: 337, suggested_t2: 375 });
-  assert.deepEqual(bracketProposal(p), { stop: 308, t1: 337, t2: 375 });
+  assert.deepEqual(bracketProposal(p), { stop: null, t1: 337, t2: 375 });
+});
+
+test('bracketProposal: fresh bracket, stop raised to break-even or better -> stop proposed', () => {
+  const p = freshBracketPos({ suggested_stop: 330, suggested_t1: 347, suggested_t2: 369.2 });
+  assert.deepEqual(bracketProposal(p), { stop: 330, t1: 347, t2: 369.2 });
+});
+
+test('bracketProposal: only a held-back stop differs -> null (no chip)', () => {
+  const p = freshBracketPos({ suggested_stop: 308, suggested_t1: 347, suggested_t2: 369.2 });
+  assert.equal(bracketProposal(p), null);
 });
 
 test('bracketProposal: AI agrees -> null (no chip)', () => {
@@ -28,12 +38,14 @@ test('bracketProposal: runner (Lot A filled) -> only stop + t2, t1 null', () => 
   assert.equal(prop.t1, null);
 });
 
-test('applyAiLevels: bracket returns the open-lot proposal (no classic desync)', () => {
+test('applyAiLevels: bracket returns the open-lot proposal (no classic desync), guard note recorded', () => {
   const p = freshBracketPos({ suggested_stop: 308, suggested_t1: 337, suggested_t2: 369.2 });
   const r = applyAiLevels(p);
   assert.equal(r.applied, false);
-  assert.deepEqual(r.proposal, { stop: 308, t1: 337, t2: 369.2 });
+  assert.deepEqual(r.proposal, { stop: null, t1: 337, t2: 369.2 });
   assert.equal(p.brackets.lots[0].stop, 296.5);
+  assert.equal(p.ai.stop_guard.suggested, 308);
+  assert.match(p.ai.stop_guard.reason, /before T1/);
 });
 
 test('commitLevels: bracket re-derives OPEN lots only', () => {
@@ -59,14 +71,33 @@ test('applyAiLevels adopts AI levels for a pending position', () => {
   assert.equal(pos.levels_source, 'ai');
 });
 
-test('applyAiLevels proposes (no mutation) for an existing position', () => {
+test('applyAiLevels proposes (no mutation) for an existing position; a downward stop is held back', () => {
   const pos = { levels_source: 'manual', stop_loss: 38, t1_price: 41, t2_price: 45,
     ai: { suggested_stop: 37.2, suggested_t1: 42.5, suggested_t2: 47 } };
   const r = applyAiLevels(pos);
   assert.equal(r.applied, false);
-  assert.deepEqual(r.proposal, { stop: 37.2, t1: 42.5, t2: 47 });
+  assert.deepEqual(r.proposal, { stop: null, t1: 42.5, t2: 47 });
   assert.equal(pos.stop_loss, 38); // unchanged
   assert.equal(pos.levels_source, 'manual'); // unchanged
+  assert.match(pos.ai.stop_guard.reason, /down from 38\.00/);
+});
+
+test('applyAiLevels: an allowed stop is proposed and clears a stale stop_guard note', () => {
+  const pos = { levels_source: 'ai', avg_cost: 10, live_price: 12, stop_loss: 9, t1_price: 13, t2_price: 15,
+    indicators: { atr: 0.5 },
+    ai: { suggested_stop: 10, suggested_t1: 13, suggested_t2: 15, stop_guard: { suggested: 9.5, reason: 'old' } } };
+  const r = applyAiLevels(pos);
+  assert.deepEqual(r.proposal, { stop: 10, t1: 13, t2: 15 });
+  assert.equal(pos.ai.stop_guard, null);
+});
+
+test('applyAiLevels: pending positions adopt AI levels without the guard', () => {
+  const pos = { levels_source: 'pending', avg_cost: 10, live_price: 10, stop_loss: 0, t1_price: 0, t2_price: 0,
+    indicators: { atr: 0.5 }, ai: { suggested_stop: 9.8, suggested_t1: 11, suggested_t2: 12 } };
+  const r = applyAiLevels(pos);
+  assert.equal(r.applied, true);
+  assert.equal(pos.stop_loss, 9.8);
+  assert.equal(pos.ai.stop_guard, undefined);
 });
 
 test('applyAiLevels returns no proposal for a bracketed position (brackets self-manage levels)', () => {

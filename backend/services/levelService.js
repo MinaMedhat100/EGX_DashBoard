@@ -70,7 +70,8 @@ export function bracketProposal(position) {
   const b = position.brackets.lots.find((l) => l.id === 'B');
   const aOpen = open.some((l) => l.id === 'A');
   const bOpen = open.some((l) => l.id === 'B');
-  const stop = pos(ai.suggested_stop);
+  // a stop the guard holds back is left out of both the diff and the proposal
+  const stop = guardStopChange(position, ai.suggested_stop).ok ? pos(ai.suggested_stop) : null;
   const t1 = aOpen ? pos(ai.suggested_t1) : null;
   const t2 = bOpen ? pos(ai.suggested_t2) : null;
   const curStop = Math.min(...open.map((l) => l.stop));
@@ -81,12 +82,14 @@ export function bracketProposal(position) {
   return diff ? { stop, t1, t2 } : null;
 }
 
-// New position (levels_source 'pending') -> adopt AI's suggested levels.
-// Existing position -> return a proposal, leave real levels untouched.
+// New (pending) position -> adopt AI's suggested levels (unguarded: no existing stop to protect).
+// Existing position -> return a proposal, leave real levels untouched; the AI's stop only reaches the
+// proposal if guardStopChange allows it, and the outcome is recorded as position.ai.stop_guard.
 export function applyAiLevels(position) {
   // Bracketed positions manage stop/targets per OPEN lot; return an open-lot-aware proposal
   // (verify at entry, manage the runner later) — never a classic whole-position apply.
   if (position.brackets) {
+    noteStopGuard(position);
     const proposal = bracketProposal(position);
     return proposal ? { applied: false, proposal } : { applied: false };
   }
@@ -102,7 +105,18 @@ export function applyAiLevels(position) {
     position.levels_source = 'ai';
     return { applied: true };
   }
-  return { applied: false, proposal: { stop, t1, t2 } };
+  const guard = noteStopGuard(position);
+  return { applied: false, proposal: { stop: guard.ok ? stop : null, t1, t2 } };
+}
+
+// Run the guard on the AI's suggested stop and record the outcome on position.ai, so the card can show
+// a held-back suggestion and the next Refresh prompt can tell the AI (null clears a stale note).
+function noteStopGuard(position) {
+  const guard = guardStopChange(position, position.ai?.suggested_stop);
+  if (position.ai) {
+    position.ai.stop_guard = guard.ok ? null : { suggested: guard.suggested, reason: guard.reason };
+  }
+  return guard;
 }
 
 // True if any of the proposal's non-null levels differs from the position's
