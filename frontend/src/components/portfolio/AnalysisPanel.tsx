@@ -31,6 +31,12 @@ function AiBlock({ ai }: { ai: AiAnalysis }) {
       <p className="text-txt-primary leading-snug">{ai.thesis}</p>
       {ai.key_risk && <p className="text-xs text-status-orange mt-1.5">⚠ {ai.key_risk}</p>}
       {ai.action_line && <p className="text-xs text-accent-cyan mt-1.5 font-medium">→ {ai.action_line}</p>}
+      {/* the AI's own text may still say to move the stop — make clear it was not offered */}
+      {ai.stop_guard && (
+        <p className="text-xs text-status-yellow mt-1.5">
+          ⚠ Held back: AI suggested a stop of {fmtNum(ai.stop_guard.suggested)} — {ai.stop_guard.reason}.
+        </p>
+      )}
       {ai.catalyst && <p className="text-[11px] text-txt-secondary mt-1.5">📰 {ai.catalyst}</p>}
       {hasLevels && (
         <div className="flex gap-4 mt-2 text-xs font-mono">

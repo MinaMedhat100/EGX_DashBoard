@@ -35,6 +35,8 @@ export interface AiAnalysis {
   vs_prior?: 'unchanged' | 'changed';
   change_reason?: string;
   catalyst?: string;
+  /** set when the dashboard held back the AI's stop suggestion (v2.4.0 stop guard) */
+  stop_guard?: { suggested: number; reason: string } | null;
 }
 
 export interface Lot {
