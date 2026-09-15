@@ -270,6 +270,7 @@ def extract_indicators(a: dict) -> dict:
     sr = a.get("support_resistance", {}) or {}
     ms = a.get("market_sentiment", {}) or {}
     struct = a.get("market_structure", {}) or {}
+    atr = a.get("atr", {}) or {}
 
     return {
         "price": pd.get("current_price"),
@@ -299,6 +300,10 @@ def extract_indicators(a: dict) -> dict:
         "bb_upper": bb.get("upper"),
         "bb_middle": bb.get("middle"),
         "bb_lower": bb.get("lower"),
+
+        # daily volatility — stops closer than ~1.5x ATR sit inside ordinary noise (v2.4.0)
+        "atr": atr.get("value"),
+        "atr_pct": atr.get("percent_of_price"),
 
         "pivot": sr.get("pivot"),
         "support_1": sr.get("support_1"),

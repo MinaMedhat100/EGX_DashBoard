@@ -84,10 +84,16 @@ class WatchlistScanBody(BaseModel):
 
 
 # ── deterministic level suggestions (baseline; AI refines later) ─────────────
+# Minimum stop distance below price, in daily ATRs (v2.4.0). Mirrors STOP_ATR_MULT in
+# backend/services/levelService.js.
+STOP_ATR_MULT = 1.5
+
+
 def suggest_levels(ind: dict) -> dict | None:
     """A bounded, deterministic baseline for entry/stop/targets. The AI analyst refines
-    this; it only has to be sane as a fallback. Stop is kept 1.5–10% below entry, T1 ≥ +3%,
-    T2 ≥ +10% and strictly above T1, so R:R never collapses to noise."""
+    this; it only has to be sane as a fallback. Stop is kept at least 1.5x ATR below price
+    (when ATR is known) and 1.5–10% below entry, T1 ≥ +3%, T2 ≥ +10% and strictly above T1,
+    so R:R never collapses to noise."""
     price = ind.get("price")
     if not price:
         return None
@@ -100,6 +106,10 @@ def suggest_levels(ind: dict) -> dict | None:
     # stop: closest structural support below price, clamped to 1.5%–10% below entry
     below = [x for x in (ema50, s1) if x and x < price]
     raw_stop = (max(below) * 0.99) if below else price * 0.95
+    # never closer than 1.5x daily ATR — the 10% cap below still wins on very volatile names
+    atr = ind.get("atr")
+    if atr and atr > 0:
+        raw_stop = min(raw_stop, price - STOP_ATR_MULT * atr)
     stop = round(min(max(raw_stop, price * 0.90), price * 0.985), 2)
 
     # T1: nearest resistance above price, at least +3%
