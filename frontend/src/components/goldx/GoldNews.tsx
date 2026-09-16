@@ -5,13 +5,22 @@ import { fmtNewsTime } from '../../lib/format';
 
 export function GoldNews() {
   const [news, setNews] = useState<NewsItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
     api
       .news('gold')
-      .then((r) => active && setNews(r.items))
-      .catch(() => active && setNews([]))
+      .then((r) => {
+        if (!active) return;
+        setNews(r.items);
+        setError(r.error ?? null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setNews([]);
+        setError('news lookup failed');
+      })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, []);
@@ -20,7 +29,9 @@ export function GoldNews() {
       <div className="text-[11px] uppercase tracking-wide text-txt-secondary mb-1.5">Gold news</div>
       {loading && <div className="text-txt-secondary text-xs">Loading…</div>}
       {!loading && news && news.length === 0 && (
-        <div className="text-txt-secondary text-xs">No recent headlines.</div>
+        <div className="text-txt-secondary text-xs">
+          {error ? `⚠ News lookup failed — ${error}` : 'No recent headlines.'}
+        </div>
       )}
       <ul className="space-y-1.5">
         {(news ?? []).map((n, i) => (

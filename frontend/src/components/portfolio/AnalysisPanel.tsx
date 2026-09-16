@@ -62,6 +62,7 @@ function Section({ title, body }: { title: string; body: string }) {
 
 export function AnalysisPanel({ p }: { p: Position }) {
   const [news, setNews] = useState<NewsItem[] | null>(null);
+  const [newsError, setNewsError] = useState<string | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
 
   useEffect(() => {
@@ -69,8 +70,16 @@ export function AnalysisPanel({ p }: { p: Position }) {
     setNewsLoading(true);
     api
       .news(p.ticker)
-      .then((r) => active && setNews(r.items))
-      .catch(() => active && setNews([]))
+      .then((r) => {
+        if (!active) return;
+        setNews(r.items);
+        setNewsError(r.error ?? null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setNews([]);
+        setNewsError('news lookup failed');
+      })
       .finally(() => active && setNewsLoading(false));
     return () => {
       active = false;
@@ -97,7 +106,9 @@ export function AnalysisPanel({ p }: { p: Position }) {
         <div className="text-[11px] uppercase tracking-wide text-txt-secondary mb-1.5">Latest news</div>
         {newsLoading && <div className="text-txt-secondary text-xs">Loading…</div>}
         {!newsLoading && news && news.length === 0 && (
-          <div className="text-txt-secondary text-xs">No recent headlines.</div>
+          <div className="text-txt-secondary text-xs">
+            {newsError ? `⚠ News lookup failed — ${newsError}` : 'No recent headlines.'}
+          </div>
         )}
         <ul className="space-y-1.5">
           {(news ?? []).map((n, i) => (

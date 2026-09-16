@@ -95,7 +95,7 @@ export const api = {
   clearScanHistory: () => req<{ ok: boolean }>('/scan-history', { method: 'DELETE' }),
 
   news: (ticker: string) =>
-    req<{ ticker: string; items: NewsItem[]; count: number }>(
+    req<{ ticker: string; items: NewsItem[]; count: number; error?: string | null }>(
       `/news/${encodeURIComponent(ticker)}`,
     ),
 

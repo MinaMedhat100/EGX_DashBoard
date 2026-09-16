@@ -109,6 +109,8 @@ export interface OrderPrefill {
   t1?: number;
   t2?: number;
   split?: number;
+  waitFor?: string;
+  entryGuard?: { level: number; above_pct: number } | null;
 }
 
 export interface RefreshAiResult {
@@ -192,6 +194,16 @@ export interface Opportunity {
   passes_filter?: boolean;
   split?: [number, number];
   split_reason?: string;
+  /** live price at scan time, attached by the backend (v2.5.0) */
+  price?: number;
+  /** deterministic overextension flags from the bridge + entry_zone_chasing from the backend */
+  overextension?: string[];
+  /** set when price sits more than 0.5% above the top of the entry zone */
+  entry_guard?: { level: number; above_pct: number } | null;
+  /** the AI's condition to wait for before entering */
+  wait_for?: string;
+  vs_prior?: 'new' | 'improving' | 'fading' | 'unchanged' | string;
+  vs_prior_note?: string;
 }
 
 export interface MarketOverview {
@@ -237,6 +249,8 @@ export interface ScanRun {
   ai_fallback: boolean;
   /** why the AI step failed when ai_fallback is true (absent on runs saved before v2.3.2) */
   ai_error?: string | null;
+  /** true when every ticker in the run came back with a failed news lookup (v2.5.0) */
+  news_unavailable?: boolean;
   scanned: number;
   passed: number;
   mode?: 'market' | 'watchlist';
@@ -257,6 +271,8 @@ export interface ScanResponse {
   market: MarketOverview | null;
   ai_fallback: boolean;
   ai_error?: string | null;
+  /** true when every ticker in the run came back with a failed news lookup (v2.5.0) */
+  news_unavailable?: boolean;
   note: string | null;
   raw: { scanned: number; passed: number };
   model: string;

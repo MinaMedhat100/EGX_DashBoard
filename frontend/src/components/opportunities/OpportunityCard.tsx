@@ -19,6 +19,40 @@ function Lvl({ label, value, color }: { label: string; value: string; color: str
 
 const d1 = (n?: number) => (n == null ? '—' : n.toFixed(1));
 
+const FLAG_LABELS: Record<string, { label: string; title: string }> = {
+  weekly_rsi_overbought: { label: 'weekly RSI hot', title: 'Weekly RSI ≥ 75 — the higher timeframe is stretched' },
+  rsi_at_band_ceiling: { label: 'RSI at ceiling', title: 'Daily RSI ≥ 68 — top of the 40-70 band' },
+  extended_above_ema20: { label: 'extended vs EMA20', title: 'Price ≥ 2× daily ATR above EMA20 (or ≥ 12%) — chasing' },
+  upper_wick_rejection: { label: 'rejected at high', title: 'Upper wick ≥ 40% of range on a body ≤ 40% — supply hit the high' },
+  adx_exhaustion: { label: 'ADX exhausted', title: 'ADX ≥ 50 — a late-stage trend, not an early one' },
+  entry_zone_chasing: { label: 'zone chasing price', title: 'The entry zone rose with price since the last scan until it reached price' },
+};
+
+function FlagChips({ flags }: { flags?: string[] }) {
+  if (!flags || flags.length === 0) return null;
+  return (
+    <>
+      {flags.map((f) => {
+        const meta = FLAG_LABELS[f] ?? { label: f.replace(/_/g, ' '), title: f };
+        return (
+          <span
+            key={f}
+            title={meta.title}
+            className="text-[10px] px-1.5 py-0.5 rounded bg-status-yellow/15 border border-status-yellow/40 text-status-yellow font-semibold"
+          >
+            ⚠ {meta.label}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+const VS_PRIOR: Record<string, string> = {
+  fading: 'text-status-yellow border-status-yellow/40 bg-status-yellow/15',
+  improving: 'text-status-green border-status-green/40 bg-status-green/15',
+};
+
 export function OpportunityCard({ o, onLog }: { o: Opportunity; onLog?: (o: Opportunity) => void }) {
   const score = o.score ?? 0;
   const scoreColor = score >= 70 ? 'rgb(var(--status-green))' : score >= 50 ? 'rgb(var(--status-yellow))' : 'rgb(var(--muted))';
@@ -44,8 +78,22 @@ export function OpportunityCard({ o, onLog }: { o: Opportunity; onLog?: (o: Oppo
               ✗ momentum
             </span>
           )}
+          <FlagChips flags={o.overextension} />
+          {o.vs_prior && VS_PRIOR[o.vs_prior] && (
+            <span
+              title={o.vs_prior_note || ''}
+              className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${VS_PRIOR[o.vs_prior]}`}
+            >
+              {o.vs_prior === 'fading' ? '↘ fading' : '↗ improving'}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          {o.price != null && (
+            <span className="font-mono text-sm font-semibold" title="Live price at scan time">
+              {fmtNum(o.price)}
+            </span>
+          )}
           {o.tv_signal && <span className="text-xs text-accent-cyan">{o.tv_signal}</span>}
           <span className="text-sm font-bold px-2 py-0.5 rounded-lg" style={{ color: scoreColor, background: `${scoreColor}22` }}>
             {score}/100
@@ -91,6 +139,18 @@ export function OpportunityCard({ o, onLog }: { o: Opportunity; onLog?: (o: Oppo
           </div>
         );
       })()}
+
+      {(o.wait_for || o.entry_guard) && (
+        <div className="mt-2 text-[11px] rounded-lg px-2.5 py-1.5 bg-status-yellow/10 border border-status-yellow/30 text-status-yellow leading-snug">
+          ⏳ {o.wait_for ? <b>Wait for: {o.wait_for}</b> : <b>Price is above the entry zone.</b>}
+          {o.entry_guard && (
+            <span className="text-txt-secondary">
+              {' '}— {o.price != null ? `price ${fmtNum(o.price)} is ` : ''}
+              {o.entry_guard.above_pct}% above the {fmtNum(o.entry_guard.level)} zone top.
+            </span>
+          )}
+        </div>
+      )}
 
       {bp.lot_a.tp != null && bp.lot_b.tp != null && (
         <div className="mt-3 border-t border-border pt-2 text-[11px]">
