@@ -66,6 +66,17 @@ test('portfolioPrompt includes bracket lots + BRACKET rule for a bracketed posit
   assert.match(p, /runner lot/i);
 });
 
+test('portfolioPrompt asks for per-lot stops on brackets and carries them in prior_ai (v2.5.2)', () => {
+  const positions = [{ ticker: 'BRKT', avg_cost: 10, shares: 100, stop_loss: 9, t1_price: 11, t2_price: 12,
+    brackets: { entry_price: 10, lots: [] },
+    ai: { recommendation: 'HOLD', suggested_stop_a: 9, suggested_stop_b: 9.4 } }];
+  const p = portfolioPrompt(positions, 'S', {});
+  assert.match(p, /"suggested_stop_a"/);
+  assert.match(p, /"suggested_stop_b"/);
+  assert.match(p, /"suggested_stop_b": 9\.4/);
+  assert.match(p, /may differ/);
+});
+
 test('opportunityPrompt asks for a per-stock split', () => {
   const p = opportunityPrompt([{ ticker: 'X', indicators: {}, suggested: {} }], {}, [], 'S', 'market', {});
   assert.match(p, /"split"/);

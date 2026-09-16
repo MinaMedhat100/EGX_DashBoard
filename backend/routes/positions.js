@@ -53,11 +53,11 @@ router.post('/positions/:ticker/refresh-ai', async (req, res, next) => {
 router.post('/positions/:ticker/apply-levels', async (req, res, next) => {
   try {
     const ticker = (req.params.ticker || '').toUpperCase();
-    const { stop, t1, t2 } = req.body || {};
+    const { stop, stop_a, stop_b, t1, t2 } = req.body || {};
     const data = await load();
     const posn = getPosition(data, ticker);
     if (!posn) return res.status(404).json({ ok: false, error: `position ${ticker} not found` });
-    commitLevels(posn, { stop, t1, t2 }); // bracket-aware: writes only to open lots
+    commitLevels(posn, { stop, stop_a, stop_b, t1, t2 }); // bracket-aware: per-lot stops, open lots only
     recomputeDerived(posn);
     await save(data);
     res.json({ ok: true, position: posn });

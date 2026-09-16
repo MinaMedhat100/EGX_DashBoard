@@ -11,12 +11,70 @@ function freshBracketPos(ai) {
 
 test('bracketProposal: fresh bracket, AI differs -> T1/T2 proposed, below-entry stop raise held back', () => {
   const p = freshBracketPos({ suggested_stop: 308, suggested_t1: 337, suggested_t2: 375 });
-  assert.deepEqual(bracketProposal(p), { stop: null, t1: 337, t2: 375 });
+  assert.deepEqual(bracketProposal(p), { stop_a: null, stop_b: null, t1: 337, t2: 375 });
 });
 
-test('bracketProposal: fresh bracket, stop raised to break-even or better -> stop proposed', () => {
+test('bracketProposal: fresh bracket, stop raised to break-even or better -> stop proposed for each open lot', () => {
   const p = freshBracketPos({ suggested_stop: 330, suggested_t1: 347, suggested_t2: 369.2 });
-  assert.deepEqual(bracketProposal(p), { stop: 330, t1: 347, t2: 369.2 });
+  assert.deepEqual(bracketProposal(p), { stop_a: 330, stop_b: 330, t1: 347, t2: 369.2 });
+});
+
+// ── v2.5.2 per-lot stops ──────────────────────────────────────────────────────
+test('bracketProposal: per-lot stops may differ — only Lot B raised', () => {
+  const p = freshBracketPos({ suggested_stop_a: 296.5, suggested_stop_b: 330, suggested_t1: 347, suggested_t2: 369.2 });
+  assert.deepEqual(bracketProposal(p), { stop_a: null, stop_b: 330, t1: 347, t2: 369.2 });
+});
+
+test('bracketProposal: per-lot fields win over suggested_stop; a held-back lot is left out', () => {
+  const p = freshBracketPos({ suggested_stop: 330, suggested_stop_a: 308, suggested_stop_b: 331, suggested_t1: 347, suggested_t2: 369.2 });
+  assert.deepEqual(bracketProposal(p), { stop_a: null, stop_b: 331, t1: 347, t2: 369.2 });
+});
+
+test('bracketProposal: a closed lot never gets a stop, even if the AI sends one', () => {
+  const p = freshBracketPos({ suggested_stop_a: 340, suggested_stop_b: 328, suggested_t1: 999, suggested_t2: 369.2 });
+  settleLot(p, 'A', { kind: 'tp', price: 347, date: 'd' }, p.avg_cost);
+  assert.deepEqual(bracketProposal(p), { stop_a: null, stop_b: 328, t1: null, t2: 369.2 });
+});
+
+test('guardStopChange: with a lot id, a bracket lot is checked against its OWN stop', () => {
+  const p = freshBracketPos({});
+  p.brackets.lots[1].stop = 330; // Lot B already raised to break-even+, Lot A still at 296.5
+  syncBracketSummary(p);
+  assert.match(guardStopChange(p, 320, 'B').reason, /down from 330\.00/);
+  assert.equal(guardStopChange(p, 320).ok, false); // whole-position view: 320 < entry before T1
+  assert.deepEqual(guardStopChange(p, 330, 'A'), { ok: true }); // Lot A 296.5 -> 330 is a raise
+  assert.deepEqual(guardStopChange(p, 300, 'Z'), { ok: true }); // unknown / closed lot: nothing to guard
+});
+
+test('applyAiLevels: bracket records a held-back note per lot', () => {
+  const p = freshBracketPos({ suggested_stop_a: 308, suggested_stop_b: 310, suggested_t1: 347, suggested_t2: 369.2 });
+  const r = applyAiLevels(p);
+  assert.equal(r.proposal, undefined);
+  assert.deepEqual(p.ai.stop_guard.map((g) => [g.lot, g.suggested]), [['A', 308], ['B', 310]]);
+  assert.match(p.ai.stop_guard[1].reason, /before T1/);
+});
+
+test('applyAiLevels: bracket with no held-back lot clears the note to null', () => {
+  const p = freshBracketPos({ suggested_stop_b: 330, suggested_t1: 347, suggested_t2: 369.2, stop_guard: [{ lot: 'B', suggested: 1, reason: 'old' }] });
+  applyAiLevels(p);
+  assert.equal(p.ai.stop_guard, null);
+});
+
+test('commitLevels: bracket writes stop_a / stop_b to their own open lots', () => {
+  const p = freshBracketPos({});
+  commitLevels(p, { stop_a: 300, stop_b: 330, t1: 347, t2: 369.2 });
+  assert.equal(p.brackets.lots[0].stop, 300);
+  assert.equal(p.brackets.lots[1].stop, 330);
+  assert.equal(p.stop_loss, 300); // summary mirror = lowest open stop
+});
+
+test('commitLevels: bracket per-lot stop for a closed lot is ignored', () => {
+  const p = freshBracketPos({});
+  settleLot(p, 'A', { kind: 'tp', price: 347, date: 'd' }, p.avg_cost);
+  commitLevels(p, { stop_a: 340, stop_b: 328 });
+  assert.equal(p.brackets.lots[0].stop, 296.5);
+  assert.equal(p.brackets.lots[1].stop, 328);
+  assert.equal(p.stop_loss, 328);
 });
 
 test('bracketProposal: only a held-back stop differs -> null (no chip)', () => {
@@ -29,11 +87,12 @@ test('bracketProposal: AI agrees -> null (no chip)', () => {
   assert.equal(bracketProposal(p), null);
 });
 
-test('bracketProposal: runner (Lot A filled) -> only stop + t2, t1 null', () => {
+test('bracketProposal: runner (Lot A filled) -> only Lot B stop + t2, Lot A fields null', () => {
   const p = freshBracketPos({ suggested_stop: 328, suggested_t1: 999, suggested_t2: 380 });
   settleLot(p, 'A', { kind: 'tp', price: 347, date: 'd' }, p.avg_cost);
   const prop = bracketProposal(p);
-  assert.equal(prop.stop, 328);
+  assert.equal(prop.stop_b, 328);
+  assert.equal(prop.stop_a, null);
   assert.equal(prop.t2, 380);
   assert.equal(prop.t1, null);
 });
@@ -42,10 +101,10 @@ test('applyAiLevels: bracket returns the open-lot proposal (no classic desync), 
   const p = freshBracketPos({ suggested_stop: 308, suggested_t1: 337, suggested_t2: 369.2 });
   const r = applyAiLevels(p);
   assert.equal(r.applied, false);
-  assert.deepEqual(r.proposal, { stop: null, t1: 337, t2: 369.2 });
+  assert.deepEqual(r.proposal, { stop_a: null, stop_b: null, t1: 337, t2: 369.2 });
   assert.equal(p.brackets.lots[0].stop, 296.5);
-  assert.equal(p.ai.stop_guard.suggested, 308);
-  assert.match(p.ai.stop_guard.reason, /before T1/);
+  assert.deepEqual(p.ai.stop_guard.map((g) => [g.lot, g.suggested]), [['A', 308], ['B', 308]]);
+  assert.match(p.ai.stop_guard[0].reason, /before T1/);
 });
 
 test('commitLevels: bracket re-derives OPEN lots only', () => {
@@ -135,6 +194,13 @@ test('proposalDiffers: true when a suggested level moves, false when all match/a
   assert.equal(proposalDiffers(pos, { stop: 296.5, t1: null, t2: 369.2 }), false); // unchanged + nulls
   assert.equal(proposalDiffers(pos, { stop: 296.5, t1: 347.004, t2: 369.2 }), false); // within 2dp rounding
   assert.equal(proposalDiffers(pos, null), false); // no proposal object
+});
+
+test('proposalDiffers: a bracket Lot B-only stop raise still surfaces the chip (v2.5.2)', () => {
+  const p = freshBracketPos({ suggested_stop_b: 330, suggested_t1: 347, suggested_t2: 369.2 });
+  const { proposal } = applyAiLevels(p);
+  assert.equal(proposalDiffers(p, proposal), true); // stop_loss mirror (Lot A 296.5) did not move
+  assert.equal(proposalDiffers(p, null), false);
 });
 
 test('applyAiLevels leaves position pending when AI returns no stop', () => {

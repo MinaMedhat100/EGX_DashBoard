@@ -103,6 +103,9 @@ const priorAiSlim = (ai) => (ai ? {
   recommendation: ai.recommendation, conviction: ai.conviction, thesis: ai.thesis,
   key_risk: ai.key_risk, suggested_stop: ai.suggested_stop, suggested_t1: ai.suggested_t1,
   suggested_t2: ai.suggested_t2, analyzed_at: ai.analyzed_at, stop_guard: ai.stop_guard ?? null,
+  ...(ai.suggested_stop_a != null || ai.suggested_stop_b != null
+    ? { suggested_stop_a: ai.suggested_stop_a ?? null, suggested_stop_b: ai.suggested_stop_b ?? null }
+    : {}),
 } : null);
 
 export function portfolioPrompt(positions, strategy, context = {}) {
@@ -146,6 +149,7 @@ export function portfolioPrompt(positions, strategy, context = {}) {
     '  "thesis": "2-3 sentences citing the ACTUAL indicator values and what the strategy says",',
     '  "key_risk": "one short line",',
     '  "suggested_stop": number, "suggested_t1": number, "suggested_t2": number,',
+    '  "suggested_stop_a": number|null, "suggested_stop_b": number|null,  (bracket positions only — else omit)',
     '  "action_line": "short imperative, e.g. \'Switch to limit sell 125sh @ 38.00\'",',
     '  "vs_prior": "unchanged|changed", "change_reason": "short line or empty",',
     '  "catalyst": "one line on the driving headline from news, or empty"',
@@ -203,9 +207,12 @@ export function portfolioPrompt(positions, strategy, context = {}) {
     'BRACKET — a position with a non-null "brackets" is a ThndrX two-lot bracket: Lot A (TP at T1)',
     'and Lot B (TP at T2), each stop-protected, both resting live. A lot with tp_hit=true is already',
     'sold at its target; a lot with stopped=true was stopped out. Manage the OPEN lot(s): once Lot A',
-    'is filled, the correct action is to raise Lot B\'s stop to break-even (avg_cost). Interpret your',
-    'suggested_stop as the RUNNER lot\'s stop (the open lot nearest its target; the shared stop before',
-    'T1 fills); suggested_t1 / suggested_t2 are the lot targets. Reference the lots explicitly in the thesis.',
+    'is filled, the correct action is to raise Lot B\'s stop to break-even (avg_cost). Each lot is its own',
+    'ThndrX order, so give suggested_stop_a (Lot A) and suggested_stop_b (Lot B) — they may differ (e.g.',
+    'keep Lot A\'s stop and raise the runner lot\'s); null for a lot that is no longer open, and the lot\'s',
+    'current stop when you are not moving it. Set suggested_stop to the runner lot\'s stop. The stop rules',
+    'apply to each lot against its own current stop. suggested_t1 / suggested_t2 are the lot targets.',
+    'Reference the lots explicitly in the thesis.',
     'LEVEL CONSISTENCY — the numbers you cite in thesis / action_line MUST be the levels you are SUGGESTING',
     '(suggested_stop/t1/t2), NOT the current stored stop/t1/t2 you were handed. When you move a level, state',
     'the move explicitly (e.g. "moving T1 347→337 to BB upper 337.68 because …") and make sure risk/percent',

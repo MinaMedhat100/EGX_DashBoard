@@ -22,7 +22,9 @@ const fmt2 = (n) => round2(n).toFixed(2);
 // post-T1 raise up to break-even, which is the strategy's own rule. Rules 1, 3, 4 guard changes to an
 // EXISTING stop: a position with no stop only gets rule 2 (holding back its first stop would leave it
 // unprotected). Missing inputs skip only the rule that needs them.
-export function guardStopChange(position, proposedStop) {
+// For a bracket, pass lotId to check against that lot's own stop (a lot that isn't open has no order to
+// guard); without it the lowest open-lot stop stands in for the whole position.
+export function guardStopChange(position, proposedStop, lotId = null) {
   const proposed = pos(proposedStop);
   if (proposed == null) return { ok: true };
 
@@ -30,7 +32,13 @@ export function guardStopChange(position, proposedStop) {
   let pastT1;
   if (position.brackets) {
     const open = openLots(position.brackets);
-    current = open.length ? pos(Math.min(...open.map((l) => l.stop))) : null;
+    if (lotId != null) {
+      const lot = open.find((l) => l.id === lotId);
+      if (!lot) return { ok: true };
+      current = pos(lot.stop);
+    } else {
+      current = open.length ? pos(Math.min(...open.map((l) => l.stop))) : null;
+    }
     pastT1 = !!(position.brackets.lots || []).find((l) => l.id === 'A')?.tp_hit;
   } else {
     current = pos(position.stop_loss);
@@ -59,27 +67,44 @@ export function guardStopChange(position, proposedStop) {
   return { ok: true };
 }
 
-// Open-lot-aware AI proposal for a bracketed position. Maps ai.suggested_* to the OPEN lots:
-// stop -> every open lot; t1 -> Lot A only if open; t2 -> Lot B only if open. Returns the proposal
-// only when a mapped level actually differs from the current open-lot value, else null.
+// The AI's stop for each OPEN bracket lot: suggested_stop_a / suggested_stop_b (v2.5.2), falling back
+// to the shared suggested_stop when a read carries neither per-lot field. A closed lot maps to null.
+function lotStopSuggestions(position) {
+  const ai = position.ai || {};
+  const perLot = pos(ai.suggested_stop_a) != null || pos(ai.suggested_stop_b) != null;
+  const out = {};
+  for (const l of openLots(position.brackets)) {
+    out[l.id] = perLot ? pos(ai[`suggested_stop_${l.id.toLowerCase()}`]) : pos(ai.suggested_stop);
+  }
+  return out;
+}
+
+// Open-lot-aware AI proposal for a bracketed position: stop_a / stop_b -> their own open lot (each
+// guarded against that lot's stop); t1 -> Lot A only if open; t2 -> Lot B only if open. A level is kept
+// only when it passes the guard and differs from the lot's current value; null when nothing moved.
 export function bracketProposal(position) {
   const ai = position.ai || {};
   const open = openLots(position.brackets);
   if (!open.length) return null;
-  const a = position.brackets.lots.find((l) => l.id === 'A');
-  const b = position.brackets.lots.find((l) => l.id === 'B');
-  const aOpen = open.some((l) => l.id === 'A');
-  const bOpen = open.some((l) => l.id === 'B');
-  // a stop the guard holds back is left out of both the diff and the proposal
-  const stop = guardStopChange(position, ai.suggested_stop).ok ? pos(ai.suggested_stop) : null;
-  const t1 = aOpen ? pos(ai.suggested_t1) : null;
-  const t2 = bOpen ? pos(ai.suggested_t2) : null;
-  const curStop = Math.min(...open.map((l) => l.stop));
-  const diff =
-    (stop != null && round2(stop) !== round2(curStop)) ||
-    (t1 != null && a && round2(t1) !== round2(a.tp_price)) ||
-    (t2 != null && b && round2(t2) !== round2(b.tp_price));
-  return diff ? { stop, t1, t2 } : null;
+  const lotOf = (id) => open.find((l) => l.id === id);
+  const stops = lotStopSuggestions(position);
+  const moved = (next, cur) => next != null && round2(next) !== round2(cur);
+  const stopFor = (id) => {
+    const lot = lotOf(id);
+    const s = stops[id] ?? null;
+    return lot && moved(s, lot.stop) && guardStopChange(position, s, id).ok ? s : null;
+  };
+  const stop_a = stopFor('A');
+  const stop_b = stopFor('B');
+  const t1 = lotOf('A') && moved(pos(ai.suggested_t1), lotOf('A').tp_price) ? pos(ai.suggested_t1) : null;
+  const t2 = lotOf('B') && moved(pos(ai.suggested_t2), lotOf('B').tp_price) ? pos(ai.suggested_t2) : null;
+  if (stop_a == null && stop_b == null && t1 == null && t2 == null) return null;
+  // unchanged targets ride along so the chip shows the full picture for the lots still open
+  return {
+    stop_a, stop_b,
+    t1: t1 ?? (lotOf('A') ? pos(ai.suggested_t1) : null),
+    t2: t2 ?? (lotOf('B') ? pos(ai.suggested_t2) : null),
+  };
 }
 
 // New (pending) position -> adopt AI's suggested levels (unguarded: no existing stop to protect).
@@ -111,7 +136,16 @@ export function applyAiLevels(position) {
 
 // Run the guard on the AI's suggested stop and record the outcome on position.ai, so the card can show
 // a held-back suggestion and the next Refresh prompt can tell the AI (null clears a stale note).
+// A bracket records a list — one { lot, suggested, reason } per open lot whose stop was held back.
 function noteStopGuard(position) {
+  if (position.brackets) {
+    const held = Object.entries(lotStopSuggestions(position))
+      .map(([lot, s]) => ({ lot, g: guardStopChange(position, s, lot) }))
+      .filter(({ g }) => !g.ok)
+      .map(({ lot, g }) => ({ lot, suggested: g.suggested, reason: g.reason }));
+    if (position.ai) position.ai.stop_guard = held.length ? held : null;
+    return;
+  }
   const guard = guardStopChange(position, position.ai?.suggested_stop);
   if (position.ai) {
     position.ai.stop_guard = guard.ok ? null : { suggested: guard.suggested, reason: guard.reason };
@@ -124,6 +158,9 @@ function noteStopGuard(position) {
 // should surface an "Apply AI levels" chip — no chip when nothing actually moved.
 export function proposalDiffers(position, proposal) {
   if (!proposal) return false;
+  // bracketProposal already diffs per lot; the whole-position stop_loss mirror would hide a
+  // runner-only stop move
+  if (position.brackets) return true;
   const pairs = [
     [proposal.stop, position.stop_loss],
     [proposal.t1, position.t1_price],
@@ -133,15 +170,17 @@ export function proposalDiffers(position, proposal) {
 }
 
 // User-confirmed levels (confirm chip or manual editor) -> commit + mark manual.
-// Bracketed positions write only to their OPEN lots (the real, editable ThndrX orders): stop to
-// every open lot, t1 to Lot A / t2 to Lot B when open; closed lots untouched; then resync mirrors.
+// Bracketed positions write only to their OPEN lots (the real, editable ThndrX orders): stop_a / stop_b
+// to their own lot (a plain stop sets every open lot), t1 to Lot A / t2 to Lot B when open; closed lots
+// untouched; then resync mirrors.
 export function commitLevels(position, levels) {
   const stop = pos(levels.stop);
   const t1 = pos(levels.t1);
   const t2 = pos(levels.t2);
   if (position.brackets) {
     for (const l of openLots(position.brackets)) {
-      if (stop != null) l.stop = stop;
+      const lotStop = pos(levels[`stop_${l.id.toLowerCase()}`]) ?? stop;
+      if (lotStop != null) l.stop = lotStop;
       if (l.id === 'A' && t1 != null) l.tp_price = t1;
       if (l.id === 'B' && t2 != null) l.tp_price = t2;
     }
