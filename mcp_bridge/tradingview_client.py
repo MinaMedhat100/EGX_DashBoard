@@ -271,6 +271,20 @@ def extract_indicators(a: dict) -> dict:
     ms = a.get("market_sentiment", {}) or {}
     struct = a.get("market_structure", {}) or {}
     atr = a.get("atr", {}) or {}
+    candle = struct.get("candle", {}) or {}
+    setup = a.get("trade_setup", {}) or {}
+    entries = setup.get("entry_points", {}) or {}
+
+    # How far price has run from its own 20 EMA, in percent and in daily ATRs. The ATR version is
+    # the meaningful one: 9% above EMA20 is two ordinary days for a 5%-ATR name and five for a
+    # 1.8%-ATR one (ALUM vs COMI, Sep 2026).
+    _price = pd.get("current_price")
+    _ema20 = ema.get("ema20")
+    _atr = atr.get("value")
+    ext_ema20_pct = round((_price - _ema20) / _ema20 * 100, 2) if (_price and _ema20) else None
+    ext_ema20_atr = (
+        round((_price - _ema20) / _atr, 2) if (_price and _ema20 and _atr and _atr > 0) else None
+    )
 
     return {
         "price": pd.get("current_price"),
@@ -289,6 +303,7 @@ def extract_indicators(a: dict) -> dict:
         "rsi": rsi.get("value"),
         "rsi_signal": rsi.get("signal"),
         "rsi_direction": rsi.get("direction"),
+        "rsi_prev": rsi.get("previous"),
 
         "macd_histogram": macd.get("histogram"),
         "macd_crossover": macd.get("crossover"),
@@ -305,11 +320,25 @@ def extract_indicators(a: dict) -> dict:
         "atr": atr.get("value"),
         "atr_pct": atr.get("percent_of_price"),
 
+        # how far price has run from the 20 EMA (v2.5.0)
+        "ext_ema20_pct": ext_ema20_pct,
+        "ext_ema20_atr": ext_ema20_atr,
+
+        # daily candle shape — a long upper wick on a small body is supply hitting the high
+        "candle_type": candle.get("type"),
+        "body_ratio": candle.get("body_ratio"),
+        "upper_wick_pct": candle.get("upper_wick_pct"),
+        "lower_wick_pct": candle.get("lower_wick_pct"),
+
         "pivot": sr.get("pivot"),
         "support_1": sr.get("support_1"),
         "support_2": sr.get("support_2"),
         "resistance_1": sr.get("resistance_1"),
         "resistance_2": sr.get("resistance_2"),
+
+        # a real pullback level to anchor an entry zone to, instead of the live price (v2.5.0)
+        "pullback_entry": entries.get("pullback_entry"),
+        "breakout_entry": entries.get("breakout_entry"),
 
         "tv_signal": ms.get("buy_sell_signal"),
         "tv_rating": ms.get("overall_rating"),
@@ -332,13 +361,22 @@ def extract_mtf(a: dict) -> dict | None:
     def bias(tf):
         return (tfs.get(tf, {}) or {}).get("bias")
 
+    def rsi_of(tf):
+        return ((tfs.get(tf, {}) or {}).get("rsi", {}) or {})
+
     w, d = bias("1W"), bias("1D")
+    w_rsi, d_rsi = rsi_of("1W"), rsi_of("1D")
     return {
         "weekly_bias": w,
         "daily_bias": d,
         "bias_4h": bias("4h"),
         "bias_1h": bias("1h"),
         "bias_15m": bias("15m"),
+        # weekly RSI rides free on a call the scan already makes (SPIN's ~82 never reached a prompt)
+        "weekly_rsi": w_rsi.get("value"),
+        "weekly_rsi_prev": w_rsi.get("previous"),
+        "weekly_rsi_dir": w_rsi.get("direction"),
+        "daily_rsi": d_rsi.get("value"),
         # both higher TFs clearly up
         "wd_aligned": w == "Bullish" and d == "Bullish",
         # the condition the 50%/100% exit rule needs: "W/D still bullish"
