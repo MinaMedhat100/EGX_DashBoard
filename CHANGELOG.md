@@ -1,5 +1,38 @@
 # Changelog
 
+## 2.5.0
+
+**The scan remembers what it said last time.** Each candidate now reaches the AI with its own
+previous read — score, conviction, ADX/+DI/RSI, the entry zone it proposed, how long ago, and how
+many past scans the name has appeared in. The prompt states the rule the post-mortems asked for:
+if score or conviction is rising while +DI, RSI or ADX are falling, that is fading momentum, and
+conviction goes *down*. Cards show a ↘ fading or ↗ improving chip.
+
+**Deterministic overextension flags.** The bridge now keeps the candle wicks, the prior RSI, the
+pullback entry and the weekly RSI it was already fetching and throwing away, and computes six
+flags: weekly RSI ≥ 75, daily RSI ≥ 68, price ≥ 2× daily ATR above EMA20 (or ≥ 12%), an upper wick
+≥ 40% on a body ≤ 40%, ADX ≥ 50, and an entry zone that rose with price since the last scan until
+it reached price. One flag caps AI conviction at 3, two or more at 2. The extension check is
+ATR-relative on purpose: 9% above the EMA20 is two ordinary days for a 5%-ATR name and five for a
+1.8%-ATR one.
+
+**An entry zone can now sit below the live price.** The deterministic baseline used to end the zone
+*at* the price, so "wait for a pullback" and "buy now" were the same instruction no matter how
+extended the stock was. When a candidate is flagged, the zone anchors to a real pullback level
+below price instead, and the stop is clamped under the zone top so a lowered entry can never invert
+risk. Cards and the Log window show the AI's wait-for condition with the board's own numbers.
+
+**The Log window shows what an entry risks.** Shares × (entry − stop) in EGP, as a percentage of
+the entry, and as a share of current book open risk — advisory only, nothing is blocked.
+
+**Opportunity cards show the live price**, and stale news no longer reaches the AI: prompts see
+only the last 30 days (a 431-day-old headline had been arriving as a "catalyst"), while the news
+panels still show everything. A failed news lookup is now distinguishable from a quiet news week.
+
+**Fixed: on a scan where nothing passed the momentum filter, the per-ticker attachments silently
+missed.** The map was built from the filtered candidate list while the AI was ranking the unfiltered
+one, so multi-timeframe data never reached those cards.
+
 ## 2.4.0
 
 **Stops that respect volatility — and a guard on the AI's stop suggestions.** From the SPIN
