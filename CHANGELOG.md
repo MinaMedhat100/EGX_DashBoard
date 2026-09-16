@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.1
+
+**Fixed: correcting a bracket position's entry no longer desyncs the bracket.** The *Correct entry*
+action predates ThndrX brackets (v1.5.4 vs v2.0.0), so on a bracketed position it moved the average
+cost but left the bracket's own entry price at the old, wrong value — and it trusted a caller-supplied
+share count that could disagree with the two lots. It now moves the bracket's entry price together
+with the average cost, and derives the share total from the open lots, so a correction can't knock
+the lots out of step. Classic (non-bracket) positions behave exactly as before. Same class of bug
+v2.0.1 closed for adding to a bracket.
+
 ## 2.5.0
 
 **The scan remembers what it said last time.** Each candidate now reaches the AI with its own
