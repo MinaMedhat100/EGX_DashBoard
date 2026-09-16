@@ -88,20 +88,75 @@ class WatchlistScanBody(BaseModel):
 # backend/services/levelService.js.
 STOP_ATR_MULT = 1.5
 
+# ── overextension flags (v2.5.0) ─────────────────────────────────────────────
+# Deterministic "you may be chasing" signals. The board computes them; the AI must answer for them
+# (one flag caps conviction at 3, two or more at 2). Mirrored in STRATEGY.md.
+WEEKLY_RSI_OVERBOUGHT = 75.0   # the higher timeframe is stretched
+RSI_BAND_CEILING = 68.0        # daily RSI at the top of the trader's own 40-70 screener band
+EXT_EMA20_ATR = 2.0            # price this many daily ATRs above EMA20 is chasing
+EXT_EMA20_PCT_MAX = 12.0       # backstop for quiet names that have run a long way
+UPPER_WICK_PCT = 40.0          # long upper wick ...
+UPPER_WICK_BODY_MAX = 0.40     # ... on a small body: supply hit the high
+ADX_EXHAUSTION = 50.0          # late-stage trend (least confident threshold — one trade)
 
-def suggest_levels(ind: dict) -> dict | None:
+
+def overextension_flags(ind: dict, mtf: dict | None = None) -> list[str]:
+    """Deterministic overextension signals for one candidate. A missing input never raises a flag."""
+    flags: list[str] = []
+
+    weekly_rsi = (mtf or {}).get("weekly_rsi")
+    if weekly_rsi is not None and weekly_rsi >= WEEKLY_RSI_OVERBOUGHT:
+        flags.append("weekly_rsi_overbought")
+
+    rsi = ind.get("rsi")
+    if rsi is not None and rsi >= RSI_BAND_CEILING:
+        flags.append("rsi_at_band_ceiling")
+
+    ext_atr, ext_pct = ind.get("ext_ema20_atr"), ind.get("ext_ema20_pct")
+    if (ext_atr is not None and ext_atr >= EXT_EMA20_ATR) or (
+        ext_pct is not None and ext_pct >= EXT_EMA20_PCT_MAX
+    ):
+        flags.append("extended_above_ema20")
+
+    wick, body = ind.get("upper_wick_pct"), ind.get("body_ratio")
+    if (
+        wick is not None
+        and body is not None
+        and wick >= UPPER_WICK_PCT
+        and body <= UPPER_WICK_BODY_MAX
+    ):
+        flags.append("upper_wick_rejection")
+
+    adx = ind.get("adx")
+    if adx is not None and adx >= ADX_EXHAUSTION:
+        flags.append("adx_exhaustion")
+
+    return flags
+
+
+def suggest_levels(ind: dict, flags=()) -> dict | None:
     """A bounded, deterministic baseline for entry/stop/targets. The AI analyst refines
     this; it only has to be sane as a fallback. Stop is kept at least 1.5x ATR below price
-    (when ATR is known) and 1.5–10% below entry, T1 ≥ +3%, T2 ≥ +10% and strictly above T1,
-    so R:R never collapses to noise."""
+    (when ATR is known), 1.5–10% below entry and always under the zone top, T1 ≥ +3%,
+    T2 ≥ +10% and strictly above T1, so R:R never collapses to noise. When `flags` is
+    non-empty the candidate is extended, so the entry zone anchors to a real pullback level
+    BELOW price instead of to price itself."""
     price = ind.get("price")
     if not price:
         return None
     ema20, ema50 = ind.get("ema20"), ind.get("ema50")
     s1, r1, r2 = ind.get("support_1"), ind.get("resistance_1"), ind.get("resistance_2")
     bbu = ind.get("bb_upper")
-    entry_hi = round(price, 2)
-    entry_lo = round(min(price, ema20 or price), 2)
+    # The entry zone is where the trade is worth taking, not where price happens to be. ALUM
+    # (Aug 2026): across three scans the zone crept up 28.40 -> 29.40 -> 29.60 until its top WAS
+    # the live price, so "wait for a pullback" and "buy now" had become the same instruction.
+    if flags:
+        below = [x for x in (ema20, ind.get("pullback_entry")) if x and x < price]
+        entry_hi = round(max(below), 2) if below else round(price * 0.97, 2)
+        entry_lo = round(entry_hi * 0.985, 2)
+    else:
+        entry_hi = round(price, 2)
+        entry_lo = round(min(price, ema20 or price), 2)
 
     # stop: closest structural support below price, clamped to 1.5%–10% below entry
     below = [x for x in (ema50, s1) if x and x < price]
@@ -111,6 +166,10 @@ def suggest_levels(ind: dict) -> dict | None:
     if atr and atr > 0:
         raw_stop = min(raw_stop, price - STOP_ATR_MULT * atr)
     stop = round(min(max(raw_stop, price * 0.90), price * 0.985), 2)
+    # A lowered entry_hi must stay above the stop or risk inverts. This can push the stop below the
+    # price*0.90 floor when the pullback level is far under price — intended, not a bug: risk is
+    # measured from the entry, so entering lower means the stop belongs lower.
+    stop = min(stop, round(entry_hi * 0.985, 2))
 
     # T1: nearest resistance above price, at least +3%
     above_t1 = [x for x in (r1, bbu) if x and x > price]
@@ -281,6 +340,10 @@ async def scan_opportunities(body: ScanBody):
             for r in results:
                 if r["passes_filter"]:
                     r["indicators"]["mtf"] = await _fetch_mtf(tv, r["ticker"])
+                # flags need the weekly RSI from mtf, and the entry zone needs the flags, so both
+                # are computed here rather than in _analyze_candidate (which runs before the fetch)
+                r["overextension"] = overextension_flags(r["indicators"], r["indicators"].get("mtf"))
+                r["suggested"] = suggest_levels(r["indicators"], r["overextension"])
     except Exception as exc:  # noqa: BLE001 — genuine connection failure
         raise HTTPException(status_code=503, detail=f"scan failed: {exc!r}")
 
@@ -320,8 +383,11 @@ async def scan_watchlist(body: WatchlistScanBody):
                 results.append(cand)
             # multi-timeframe for every resolved ticker (the list is small)
             for r in results:
-                if "error" not in r:
-                    r["indicators"]["mtf"] = await _fetch_mtf(tv, r["ticker"])
+                if "error" in r:
+                    continue
+                r["indicators"]["mtf"] = await _fetch_mtf(tv, r["ticker"])
+                r["overextension"] = overextension_flags(r["indicators"], r["indicators"].get("mtf"))
+                r["suggested"] = suggest_levels(r["indicators"], r["overextension"])
     except Exception as exc:  # noqa: BLE001 — genuine connection failure
         raise HTTPException(status_code=503, detail=f"watchlist scan failed: {exc!r}")
 
