@@ -12,7 +12,7 @@ import { GoldxPage } from './pages/GoldxPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { GlowCard } from './components/common/GlowCard';
 import { LogOrderModal } from './components/orders/LogOrderModal';
-import type { PortfolioData, LevelProposal, Position, Opportunity, OrderPrefill } from './types/portfolio';
+import type { PortfolioData, LevelProposal, LevelsInput, Position, Opportunity, OrderPrefill } from './types/portfolio';
 
 function LoadingState() {
   return (
@@ -106,7 +106,7 @@ function Shell() {
     if (ticker) runAiUpdate(ticker);
   };
 
-  const onApplyLevels = async (ticker: string, levels: { stop: number; t1: number; t2: number }) => {
+  const onApplyLevels = async (ticker: string, levels: LevelsInput) => {
     try {
       const r = await api.applyLevels(ticker, levels);
       applyPositions([r.position]);

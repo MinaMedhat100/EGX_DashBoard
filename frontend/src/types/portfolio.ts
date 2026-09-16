@@ -29,15 +29,21 @@ export interface AiAnalysis {
   suggested_stop?: number;
   suggested_t1?: number;
   suggested_t2?: number;
+  /** bracket positions: the AI's stop for each lot (v2.5.2) */
+  suggested_stop_a?: number | null;
+  suggested_stop_b?: number | null;
   action_line?: string;
   model?: string;
   analyzed_at?: string;
   vs_prior?: 'unchanged' | 'changed';
   change_reason?: string;
   catalyst?: string;
-  /** set when the dashboard held back the AI's stop suggestion (v2.4.0 stop guard) */
-  stop_guard?: { suggested: number; reason: string } | null;
+  /** set when the dashboard held back the AI's stop suggestion (v2.4.0 stop guard);
+   *  a bracket carries one entry per held-back lot (v2.5.2) */
+  stop_guard?: StopGuard | StopGuard[] | null;
 }
+
+export interface StopGuard { suggested: number; reason: string; lot?: 'A' | 'B' }
 
 export interface Lot {
   id: 'A' | 'B';
@@ -96,10 +102,22 @@ export interface Position {
   brackets?: Brackets | null;
 }
 
+/** classic positions use stop; brackets use stop_a / stop_b (null = that lot's stop unchanged) */
 export interface LevelProposal {
-  stop: number | null;
+  stop?: number | null;
+  stop_a?: number | null;
+  stop_b?: number | null;
   t1: number | null;
   t2: number | null;
+}
+
+/** levels sent to apply-levels: stop for classic, stop_a / stop_b for a bracket's lots */
+export interface LevelsInput {
+  stop?: number;
+  stop_a?: number;
+  stop_b?: number;
+  t1: number;
+  t2: number;
 }
 
 export interface OrderPrefill {

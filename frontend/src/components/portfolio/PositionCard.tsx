@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Position, LevelProposal } from '../../types/portfolio';
+import type { Position, LevelProposal, LevelsInput, Lot } from '../../types/portfolio';
 import { GlowCard } from '../common/GlowCard';
 import { StatusBadge } from '../common/StatusBadge';
 import { MtfBadge } from '../common/MtfBadge';
@@ -45,18 +45,31 @@ export function PositionCard({
   onLogOrder: (ticker: string) => void;
   updating?: boolean;
   proposal?: LevelProposal;
-  onApplyLevels: (ticker: string, levels: { stop: number; t1: number; t2: number }) => void;
+  onApplyLevels: (ticker: string, levels: LevelsInput) => void;
   onDismissProposal: (ticker: string) => void;
   onCorrectEntry: (ticker: string, entry: { shares: number; avg_cost: number }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [eStop, setEStop] = useState('');
+  const [eStopB, setEStopB] = useState('');
   const [eT1, setET1] = useState('');
   const [eT2, setET2] = useState('');
   const [editingEntry, setEditingEntry] = useState(false);
   const [eShares, setEShares] = useState('');
   const [eAvg, setEAvg] = useState('');
+  const lotA = p.brackets?.lots.find((l) => l.id === 'A');
+  const lotB = p.brackets?.lots.find((l) => l.id === 'B');
+  const lotIsOpen = (l?: Lot) => !!l && !l.tp_hit && !l.stopped;
+  const hasOpenLot = lotIsOpen(lotA) || lotIsOpen(lotB);
+  // prefill the bracket editor with each lot's live ThndrX order values
+  const openBracketEditor = () => {
+    setEStop(lotA ? String(lotA.stop) : '');
+    setET1(lotA ? String(lotA.tp_price) : '');
+    setEStopB(lotB ? String(lotB.stop) : '');
+    setET2(lotB ? String(lotB.tp_price) : '');
+    setEditing(true);
+  };
   const suspect = entryPriceSuspect(p.avg_cost, p.live_price);
   const meta = STATUS_META[p.status_key] ?? STATUS_META.yellow;
   const chg = p.chg_pos == null ? null : dailyPct(p.daily_chg);
@@ -142,6 +155,15 @@ export function PositionCard({
       {noLive && <div className="mt-2 text-[11px] text-status-yellow">⚠ No TV data — verify price in Thndr</div>}
 
       {p.is_liquid && <PriceRangeBar p={p} />}
+
+      {p.brackets && hasOpenLot && !editing && !updating && (
+        <button
+          onClick={openBracketEditor}
+          className="mt-1.5 text-[11px] text-accent-purple-lt hover:text-txt-primary transition"
+        >
+          ✎ Edit lot levels
+        </button>
+      )}
 
       {chips.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-1">
@@ -255,7 +277,47 @@ export function PositionCard({
         </div>
       )}
 
-      {!updating && editing && (
+      {!updating && editing && p.brackets && (
+        <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-surface border border-border-strong">
+          <div className="text-txt-secondary text-[11px] mb-1.5">Set lot levels manually (EGP) — match your ThndrX orders</div>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              [lotA, 'Stop A', eStop, setEStop], [lotA, 'T1 (Lot A)', eT1, setET1],
+              [lotB, 'Stop B', eStopB, setEStopB], [lotB, 'T2 (Lot B)', eT2, setET2],
+            ] as const).map(([lot, label, val, set]) => (
+              <label key={label} className="block">
+                <span className="text-[10px] uppercase text-txt-secondary">
+                  {label}{lot && !lotIsOpen(lot) ? (lot.tp_hit ? ' · filled' : ' · stopped') : ''}
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={val}
+                  disabled={!lotIsOpen(lot)}
+                  onChange={(e) => set(e.target.value)}
+                  className="mt-1 w-full bg-bg-card border border-border-strong rounded px-2 py-1 text-sm focus:border-accent-cyan focus:outline-none disabled:opacity-40"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => {
+                onApplyLevels(p.ticker, {
+                  stop_a: Number(eStop) || 0, stop_b: Number(eStopB) || 0, t1: Number(eT1) || 0, t2: Number(eT2) || 0,
+                });
+                setEditing(false);
+              }}
+              className="btn-primary px-3 py-1 text-xs"
+            >
+              Save levels
+            </button>
+            <button onClick={() => setEditing(false)} className="btn-ghost px-3 py-1 text-xs">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {!updating && editing && !p.brackets && (
         <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-surface border border-border-strong">
           <div className="text-txt-secondary text-[11px] mb-1.5">Set levels manually (EGP)</div>
           <div className="grid grid-cols-3 gap-2">
@@ -292,6 +354,24 @@ export function PositionCard({
       {!updating && proposal && !editing && (
         <div className="mt-3 text-sm rounded-lg px-3 py-2 bg-accent-purple/10 border border-accent-purple/30">
           <div className="text-accent-purple-lt font-medium">Apply AI levels?</div>
+          {p.brackets ? (
+            <div className="text-[11px] font-mono text-txt-secondary mt-1 space-y-0.5">
+              {([[lotA, proposal.stop_a, proposal.t1, 'T1'], [lotB, proposal.stop_b, proposal.t2, 'T2']] as const).map(
+                ([lot, stop, tp, tpLabel]) =>
+                  lot && lotIsOpen(lot) && (
+                    <div key={lot.id} className="flex flex-wrap gap-x-3">
+                      <span className="text-txt-primary">Lot {lot.id}</span>
+                      <span className={stop != null ? 'text-txt-primary' : ''}>
+                        stop {fmtNum(lot.stop)} → {fmtNum(stop ?? lot.stop)}
+                      </span>
+                      <span className={tp != null && tp !== lot.tp_price ? 'text-txt-primary' : ''}>
+                        {tpLabel} {fmtNum(lot.tp_price)} → {fmtNum(tp ?? lot.tp_price)}
+                      </span>
+                    </div>
+                  ),
+              )}
+            </div>
+          ) : (
           <div className="text-[11px] font-mono text-txt-secondary mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
             <span className={p.stop_raised && proposal.stop != null && proposal.stop < p.stop_loss ? 'text-status-yellow' : ''}>
               stop {fmtNum(p.stop_loss)} → {proposal.stop != null ? fmtNum(proposal.stop) : '—'}
@@ -300,16 +380,24 @@ export function PositionCard({
             <span>T1 {fmtNum(p.t1_price)} → {proposal.t1 != null ? fmtNum(proposal.t1) : '—'}</span>
             <span>T2 {fmtNum(p.t2_price)} → {proposal.t2 != null ? fmtNum(proposal.t2) : '—'}</span>
           </div>
+          )}
           {p.brackets && (
             <div className="text-[10px] text-txt-secondary mt-1">Apply after you edit the matching orders in ThndrX.</div>
           )}
           <div className="flex gap-2 mt-2">
             <button
-              onClick={() => onApplyLevels(p.ticker, {
-                stop: proposal.stop ?? p.stop_loss,
-                t1: proposal.t1 ?? p.t1_price,
-                t2: proposal.t2 ?? p.t2_price,
-              })}
+              onClick={() => onApplyLevels(p.ticker, p.brackets
+                ? {
+                    stop_a: proposal.stop_a ?? lotA?.stop ?? 0,
+                    stop_b: proposal.stop_b ?? lotB?.stop ?? 0,
+                    t1: proposal.t1 ?? p.t1_price,
+                    t2: proposal.t2 ?? p.t2_price,
+                  }
+                : {
+                    stop: proposal.stop ?? p.stop_loss,
+                    t1: proposal.t1 ?? p.t1_price,
+                    t2: proposal.t2 ?? p.t2_price,
+                  })}
               className="btn-primary px-3 py-1 text-xs"
             >
               Apply

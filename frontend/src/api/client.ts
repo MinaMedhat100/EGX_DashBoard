@@ -9,6 +9,7 @@ import type {
   ScanRunSummary,
   RefreshAiResult,
   LevelProposal,
+  LevelsInput,
   ScanResponse,
   ScanParamsDto,
   IndexSnapshot,
@@ -111,7 +112,7 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ model }) },
     ),
 
-  applyLevels: (ticker: string, levels: { stop: number; t1: number; t2: number }) =>
+  applyLevels: (ticker: string, levels: LevelsInput) =>
     req<{ ok: boolean; position: Position }>(
       `/positions/${encodeURIComponent(ticker)}/apply-levels`,
       { method: 'POST', body: JSON.stringify(levels) },

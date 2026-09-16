@@ -1,4 +1,4 @@
-import type { PortfolioData, LevelProposal } from '../types/portfolio';
+import type { PortfolioData, LevelProposal, LevelsInput } from '../types/portfolio';
 import { PortfolioSummary } from '../components/portfolio/PortfolioSummary';
 import { AlertBanner } from '../components/portfolio/AlertBanner';
 import { PositionCard } from '../components/portfolio/PositionCard';
@@ -22,7 +22,7 @@ export function PortfolioPage({
   onLogOrder: (ticker: string) => void;
   aiUpdating: string | null;
   proposals: Record<string, LevelProposal>;
-  onApplyLevels: (ticker: string, levels: { stop: number; t1: number; t2: number }) => void;
+  onApplyLevels: (ticker: string, levels: LevelsInput) => void;
   onDismissProposal: (ticker: string) => void;
   onCorrectEntry: (ticker: string, entry: { shares: number; avg_cost: number }) => void;
   staleTicker: string | null;

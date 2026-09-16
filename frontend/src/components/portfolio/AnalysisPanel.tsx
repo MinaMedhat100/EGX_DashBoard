@@ -15,6 +15,8 @@ const REC_COLOR: Record<string, string> = {
 function AiBlock({ ai }: { ai: AiAnalysis }) {
   const color = REC_COLOR[ai.recommendation] ?? 'rgb(var(--status-purple))';
   const hasLevels = ai.suggested_stop || ai.suggested_t1 || ai.suggested_t2;
+  const perLot = ai.suggested_stop_a != null || ai.suggested_stop_b != null;
+  const guards = ai.stop_guard == null ? [] : Array.isArray(ai.stop_guard) ? ai.stop_guard : [ai.stop_guard];
   return (
     <div className="rounded-xl p-3" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.3)' }}>
       <div className="flex items-center gap-2 mb-1.5">
@@ -32,15 +34,22 @@ function AiBlock({ ai }: { ai: AiAnalysis }) {
       {ai.key_risk && <p className="text-xs text-status-orange mt-1.5">⚠ {ai.key_risk}</p>}
       {ai.action_line && <p className="text-xs text-accent-cyan mt-1.5 font-medium">→ {ai.action_line}</p>}
       {/* the AI's own text may still say to move the stop — make clear it was not offered */}
-      {ai.stop_guard && (
-        <p className="text-xs text-status-yellow mt-1.5">
-          ⚠ Held back: AI suggested a stop of {fmtNum(ai.stop_guard.suggested)} — {ai.stop_guard.reason}.
+      {guards.map((g, i) => (
+        <p key={g.lot ?? i} className="text-xs text-status-yellow mt-1.5">
+          ⚠ Held back: AI suggested a {g.lot ? `Lot ${g.lot} ` : ''}stop of {fmtNum(g.suggested)} — {g.reason}.
         </p>
-      )}
+      ))}
       {ai.catalyst && <p className="text-[11px] text-txt-secondary mt-1.5">📰 {ai.catalyst}</p>}
       {hasLevels && (
-        <div className="flex gap-4 mt-2 text-xs font-mono">
-          <span className="text-status-red">stop {fmtNum(ai.suggested_stop)}</span>
+        <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2 text-xs font-mono">
+          {perLot ? (
+            <>
+              <span className="text-status-red">stop A {fmtNum(ai.suggested_stop_a ?? null)}</span>
+              <span className="text-status-red">stop B {fmtNum(ai.suggested_stop_b ?? null)}</span>
+            </>
+          ) : (
+            <span className="text-status-red">stop {fmtNum(ai.suggested_stop)}</span>
+          )}
           <span className="text-status-orange">T1 {fmtNum(ai.suggested_t1)}</span>
           <span className="text-status-green">T2 {fmtNum(ai.suggested_t2)}</span>
           <span className="ml-auto text-[10px] text-txt-secondary">AI-suggested</span>
