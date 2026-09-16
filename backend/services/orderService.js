@@ -280,18 +280,27 @@ export function correctEntry(data, { ticker, shares, avg_cost, date }) {
   const pos = data.positions.find((p) => p.ticker === t);
   if (!pos) throw httpErr(404, `position ${t} not found`);
   const from = { shares: pos.shares, avg_cost: pos.avg_cost };
-  pos.shares = s;
   pos.avg_cost = c;
-  pos.position_label = `${s}sh — corrected ${date} @ ${c}`;
+  if (pos.brackets) {
+    // A bracket carries its own cost basis, and `shares` is DERIVED from the open lots — this
+    // function predates brackets (v1.5.4 vs v2.0.0). Move entry_price with avg_cost and let the
+    // lots define the total, so a mismatched caller count cannot desync them.
+    pos.brackets.entry_price = c;
+    syncBracketSummary(pos);
+    pos.position_label = `${pos.shares}sh bracket — corrected ${date} @ ${c}`;
+  } else {
+    pos.shares = s;
+    pos.position_label = `${s}sh — corrected ${date} @ ${c}`;
+  }
   if (pos.live_price > 0) {
-    pos.unrealized_pnl = round2((pos.live_price - c) * s);
+    pos.unrealized_pnl = round2((pos.live_price - c) * pos.shares);
     pos.unrealized_pct = round2(((pos.live_price - c) / c) * 100);
   }
   data.action_log.unshift(
     logEntry({
-      type: 'CORRECT', ticker: t, shares: s, price: c, new_avg_cost: c, total_shares: s,
+      type: 'CORRECT', ticker: t, shares: pos.shares, price: c, new_avg_cost: c, total_shares: pos.shares,
       notes: `entry corrected from ${from.shares}sh @ ${from.avg_cost}`, date,
     }),
   );
-  return { toasts: [`${t}: entry corrected to ${s}sh @ ${c}`] };
+  return { toasts: [`${t}: entry corrected to ${pos.shares}sh @ ${c}`] };
 }
