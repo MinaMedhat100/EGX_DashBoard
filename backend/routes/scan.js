@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { load } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
 import { analyzeOpportunities, DEFAULT_MODEL } from '../services/analystService.js';
-import { gatherNews, latestRegime } from '../services/aiContext.js';
+import { gatherNews, gatherNewsResults, latestRegime } from '../services/aiContext.js';
 import { appendRun, listRuns, getRun, clearRuns, lookupPriorReads } from '../services/scanHistoryStore.js';
 import { annotateEntries } from '../services/entryGuard.js';
 
@@ -83,11 +83,22 @@ router.post('/scan-opportunities', async (req, res, next) => {
     let opportunities = [];
     let fallback = false;
     let aiError = null;
+    let newsUnavailable = false;
     // Skip the AI call entirely when the screener returned nothing (e.g. pre-market).
     if (candidates && candidates.length) {
       try {
-        const [news, regime] = await Promise.all([gatherNews(tickers), latestRegime()]);
-        opportunities = await analyzeOpportunities(candidates, market, exclude, model, { context: { news, regime, priors } });
+        const [newsResults, regime] = await Promise.all([gatherNewsResults(tickers), latestRegime()]);
+        const news = {};
+        const newsErrors = {};
+        for (const [t, r] of Object.entries(newsResults)) {
+          news[t] = r.items;
+          if (r.error) newsErrors[t] = r.error;
+        }
+        const failed = Object.keys(newsErrors).length;
+        newsUnavailable = failed > 0 && failed === Object.keys(newsResults).length;
+        opportunities = await analyzeOpportunities(candidates, market, exclude, model, {
+          context: { news, regime, priors, news_errors: newsErrors },
+        });
         if (!opportunities?.length) throw new Error('empty AI result');
       } catch (e) {
         aiError = aiFailureReason(e);
@@ -118,6 +129,7 @@ router.post('/scan-opportunities', async (req, res, next) => {
       market,
       ai_fallback: fallback,
       ai_error: aiError,
+      news_unavailable: newsUnavailable,
       scanned: scan.scanned_count,
       passed: scan.passed_count,
       mode: 'market',
@@ -131,6 +143,7 @@ router.post('/scan-opportunities', async (req, res, next) => {
       market,
       ai_fallback: fallback,
       ai_error: aiError,
+      news_unavailable: newsUnavailable,
       note: scan.note ?? null,
       raw: { scanned: scan.scanned_count, passed: scan.passed_count },
       model,

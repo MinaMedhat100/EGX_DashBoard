@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { relAge, gatherNews, goldMacroNews, latestRegime, REGIME_MAX_AGE_MS } from '../services/aiContext.js';
+import {
+  relAge, gatherNews, gatherNewsResults, goldMacroNews, latestRegime,
+  REGIME_MAX_AGE_MS, NEWS_MAX_AGE_DAYS,
+} from '../services/aiContext.js';
 
 const NOW = Date.parse('2026-08-16T12:00:00Z');
 const iso = (msAgo) => new Date(NOW - msAgo).toISOString();
@@ -38,4 +41,25 @@ test('latestRegime parses fresh, flags stale, null on missing', async () => {
   assert.equal((await latestRegime(old, NOW)).stale, true);
   assert.equal(await latestRegime(async () => null, NOW), null);
   assert.equal(await latestRegime(async () => ({ timestamp: 't', overall: {} }), NOW), null);
+});
+
+test('compact drops headlines older than NEWS_MAX_AGE_DAYS but keeps undated ones', async () => {
+  assert.equal(NEWS_MAX_AGE_DAYS, 30);
+  const fake = async () => [
+    { headline: 'fresh', time: iso(2 * 24 * 60 * 60 * 1000) },
+    { headline: 'ancient', time: iso(431 * 24 * 60 * 60 * 1000) },
+    { headline: 'undated', time: null },
+  ];
+  const out = await gatherNews(['COMI'], fake, NOW);
+  assert.deepEqual(out.COMI.map((n) => n.headline), ['fresh', 'undated']);
+});
+
+test('gatherNewsResults surfaces a failed lookup and normalizes an array fetch', async () => {
+  const failing = async () => ({ items: [], error: 'news feed HTTP 503' });
+  assert.equal((await gatherNewsResults(['COMI'], failing, NOW)).COMI.error, 'news feed HTTP 503');
+
+  const arrayFetch = async () => [{ headline: 'a', time: iso(60 * 60 * 1000) }];
+  const r = await gatherNewsResults(['COMI'], arrayFetch, NOW);
+  assert.equal(r.COMI.error, null);
+  assert.equal(r.COMI.items.length, 1);
 });

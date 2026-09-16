@@ -52,16 +52,17 @@ function parseRss(xml) {
   return items;
 }
 
-export async function newsForQuery(query) {
+// One RSS query. Returns {items, error} so callers can tell "the lookup failed" from "no news".
+async function fetchQuery(query) {
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
   try {
     const res = await fetch(url, {
       signal: AbortSignal.timeout(8000),
       headers: { 'User-Agent': 'Mozilla/5.0' },
     });
-    if (!res.ok) return [];
+    if (!res.ok) return { items: [], error: `news feed HTTP ${res.status}` };
     const xml = await res.text();
-    return parseRss(xml).map((it) => {
+    const items = parseRss(xml).map((it) => {
       let headline = it.title;
       if (it.source && headline.endsWith(` - ${it.source}`)) {
         headline = headline.slice(0, -(it.source.length + 3));
@@ -74,17 +75,24 @@ export async function newsForQuery(query) {
         source: it.source ? `google:${it.source}` : 'google',
       };
     });
-  } catch {
-    return [];
+    return { items, error: null };
+  } catch (e) {
+    const why = e?.name === 'TimeoutError' ? 'timeout' : (e?.message || 'network error');
+    return { items: [], error: `news feed unreachable (${why})` };
   }
 }
 
-export async function getNews(ticker) {
+export async function newsForQuery(query) {
+  return (await fetchQuery(query)).items;
+}
+
+export async function getNewsResult(ticker) {
   const key = (ticker || '').toUpperCase();
   const name = EGX_NAMES[key];
   const query = name ? `${name} Egypt stock` : `${ticker} EGX Egypt stock`;
 
-  const collected = [...(await newsForQuery(query))];
+  const rss = await fetchQuery(query);
+  const collected = [...rss.items];
 
   // bridge (MCP financial_news) — usually empty for EGX, merge whatever exists.
   try {
@@ -106,5 +114,10 @@ export async function getNews(ticker) {
     out.push(item);
     if (out.length >= 5) break;
   }
-  return out;
+  // only an error when we could not look AND found nothing — a quiet week is not a failure
+  return { items: out, error: rss.error && out.length === 0 ? rss.error : null };
+}
+
+export async function getNews(ticker) {
+  return (await getNewsResult(ticker)).items;
 }
