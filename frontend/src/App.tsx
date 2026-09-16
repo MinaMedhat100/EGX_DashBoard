@@ -70,6 +70,8 @@ function Shell() {
         t1: o.t1,
         t2: o.t2,
         split: o.split?.[0] ?? 50,
+        waitFor: o.wait_for,
+        entryGuard: o.entry_guard ?? null,
       },
     });
 

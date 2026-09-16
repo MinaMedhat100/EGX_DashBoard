@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { api } from '../../api/client';
 import type { PortfolioData, Position, OrderPrefill } from '../../types/portfolio';
+import { openRiskEgp } from '../../lib/risk';
 
 type OrderType = 'STOP_OUT' | 'SELL' | 'BUY_NEW' | 'BUY_ADD';
 
@@ -141,6 +142,22 @@ export function LogOrderModal({
   };
   const isLotAware = (type === 'SELL' || type === 'STOP_OUT') && !!held?.brackets;
   const addBlocked = type === 'BUY_ADD' && !!held?.brackets;
+
+  // What this order actually risks, in EGP — the number the AI means when it says "size down".
+  // Advisory only; it never blocks the order.
+  const riskLine = (() => {
+    if (type !== 'BUY_NEW' && type !== 'BUY_ADD') return null;
+    const sh = Number(shares);
+    const entry = Number(price);
+    const stop = type === 'BUY_NEW' && entryMode === 'bracket' ? Number(bStop) : (held?.stop_loss ?? 0);
+    if (!sh || !entry || !stop || stop <= 0 || entry <= stop) return null;
+    const perShare = entry - stop;
+    const risk = sh * perShare;
+    const pctOfEntry = (perShare / entry) * 100;
+    const book = openRiskEgp(positions);
+    const share = book > 0 ? (risk / book) * 100 : null;
+    return { perShare, risk, pctOfEntry, share };
+  })();
 
   const submit = async () => {
     setBusy(true);
@@ -334,6 +351,23 @@ export function LogOrderModal({
             <Field label="T2">
               <input type="number" step="0.01" className={input} value={bT2} onChange={(e) => setBT2(e.target.value)} placeholder="42.00" />
             </Field>
+          </div>
+        )}
+
+        {riskLine && (
+          <div className="text-[11px] text-txt-secondary bg-surface border border-border rounded-lg px-3 py-2 font-mono">
+            Risk: {Number(shares).toLocaleString()}sh × {riskLine.perShare.toFixed(2)} ={' '}
+            <b className="text-status-yellow">{riskLine.risk.toFixed(0)} EGP</b> · {riskLine.pctOfEntry.toFixed(1)}% of entry
+            {riskLine.share != null && <> · +{riskLine.share.toFixed(0)}% of current book open risk</>}
+          </div>
+        )}
+
+        {(prefill?.waitFor || prefill?.entryGuard) && (
+          <div className="text-[11px] text-status-yellow bg-status-yellow/10 border border-status-yellow/30 rounded-lg px-3 py-2">
+            ⏳ {prefill.waitFor ? <b>The AI said: wait for {prefill.waitFor}</b> : <b>Price was above the entry zone at scan time.</b>}
+            {prefill.entryGuard && (
+              <> Price was {prefill.entryGuard.above_pct}% above the {prefill.entryGuard.level.toFixed(2)} zone top.</>
+            )}
           </div>
         )}
 

@@ -1,5 +1,6 @@
 // risk.ts — R-multiple framing (no position sizing / capital needed).
 // 1R = initial risk per share (entry - stop). Targets and live P&L expressed in R.
+import type { Position } from '../types/portfolio';
 
 export function rMultiple(entry: number, stop: number, target: number): number | null {
   const risk = entry - stop;
@@ -54,4 +55,25 @@ export function fmtR(r: number | null | undefined): string {
   if (r == null || Number.isNaN(r)) return '—';
   const s = r >= 0 ? '+' : '';
   return `${s}${r.toFixed(1)}R`;
+}
+
+/**
+ * Book open risk in EGP — a TS mirror of backend/services/portfolioStats.js `open_risk_egp`.
+ * Keep in exact numeric parity with the Node source of truth: liquid positions only, per-lot for
+ * brackets, and a stop above cost contributes zero rather than a negative.
+ */
+export function openRiskEgp(positions: Position[]): number {
+  let total = 0;
+  for (const p of positions || []) {
+    if (!p.is_liquid) continue;
+    if (p.brackets) {
+      for (const l of p.brackets.lots) {
+        if (l.tp_hit || l.stopped) continue;
+        if (l.stop > 0) total += Math.max(0, p.avg_cost - l.stop) * l.shares;
+      }
+    } else if (p.stop_loss > 0) {
+      total += Math.max(0, p.avg_cost - p.stop_loss) * p.shares;
+    }
+  }
+  return total;
 }
