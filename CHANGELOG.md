@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.2
+
+**Each bracket lot now has its own stop.** A ThndrX bracket's two lots are separate orders, and
+their stops can be edited separately, but the board only knew one shared stop: the AI suggested one,
+the stop guard checked one, and Apply wrote the same value to both lots. Now the AI suggests a stop
+for Lot A and Lot B separately. Each suggestion is checked against that lot's own current stop, with
+the same rules as before: never lower, never at or above the price, at least break-even before T1,
+and at least 1.5× ATR from the price. A held-back suggestion names its lot. The *Apply AI levels*
+chip shows one row per open lot, and a new *Edit lot levels* link opens an editor with a stop and a
+target for each lot. A filled or stopped lot can't be edited. An analysis saved before this version
+still applies its single stop to every open lot. A Refresh that only moves Lot B's stop still shows
+the chip, even though the position's overall stop (the lowest of the open lots) stays the same.
+Classic positions are unchanged.
+
 ## 2.5.1
 
 **Fixed: correcting a bracket position's entry no longer desyncs the bracket.** The *Correct entry*
