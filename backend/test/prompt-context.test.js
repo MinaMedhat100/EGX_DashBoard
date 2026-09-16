@@ -91,3 +91,57 @@ test('opportunityPrompt tells the AI to keep stops at least 1.5x ATR below entry
   assert.match(p, /"atr": 0\.95/);
   assert.match(p, /at least 1\.5x ATR below the entry/);
 });
+
+test('opportunityPrompt carries the prior read and the fading-momentum rule (v2.5.0)', () => {
+  const cands = [{ ticker: 'ALUM', indicators: {}, suggested: {} }];
+  const priors = {
+    ALUM: {
+      as_of: '2026-08-25T23:44:00Z', days_ago: 2, score: 80, conviction: 4,
+      plus_di: 39.2, rsi: 69.1, entry_zone: [27.6, 29.4], seen_count: 3, thesis: 'prior ALUM read',
+    },
+  };
+  const p = opportunityPrompt(cands, {}, [], 'S', 'market', { priors });
+  assert.match(p, /prior ALUM read/);
+  assert.match(p, /"seen_count": 3/);
+  assert.match(p, /fading momentum/i);
+  assert.match(p, /"vs_prior"/);
+  assert.match(p, /vs_prior_note/);
+});
+
+test('opportunityPrompt states the overextension flags and the conviction caps (v2.5.0)', () => {
+  const cands = [{ ticker: 'ALUM', indicators: { rsi: 69.9 }, suggested: {}, overextension: ['rsi_at_band_ceiling'] }];
+  const p = opportunityPrompt(cands, {}, [], 'S', 'market', {});
+  assert.match(p, /"rsi_at_band_ceiling"/);
+  assert.match(p, /OVEREXTENSION/);
+  assert.match(p, /weekly_rsi_overbought/);
+  assert.match(p, /entry_zone_chasing/);
+  assert.match(p, /cap conviction at 3/i);
+  assert.match(p, /two or more/i);
+});
+
+test('opportunityPrompt says volume is unavailable and forbids claiming it (v2.5.0)', () => {
+  const p = opportunityPrompt([{ ticker: 'X', indicators: {}, suggested: {} }], {}, [], 'S', 'market', {});
+  assert.match(p, /volume averages are NOT available/i);
+  assert.match(p, /do not claim volume confirmation/i);
+});
+
+test('opportunityPrompt demands entry discipline, wait_for and level consistency (v2.5.0)', () => {
+  const p = opportunityPrompt([{ ticker: 'X', indicators: {}, suggested: {} }], {}, [], 'S', 'market', {});
+  assert.match(p, /ENTRY DISCIPLINE/);
+  assert.match(p, /"wait_for"/);
+  assert.match(p, /LEVEL CONSISTENCY/);
+  assert.match(p, /catalyst older than/i);
+});
+
+test('a failed news lookup is marked on the candidate, and portfolioPrompt ages catalysts too (v2.5.0)', () => {
+  const p = opportunityPrompt(
+    [{ ticker: 'ALUM', indicators: {}, suggested: {} }], {}, [], 'S', 'market',
+    { news_errors: { ALUM: 'news feed HTTP 503' } },
+  );
+  assert.match(p, /"news_unavailable": true/);
+  assert.match(p, /news LOOKUP FAILED/);
+
+  const pp = portfolioPrompt([{ ticker: 'X', avg_cost: 1, shares: 1, live_price: 1 }], 'S', {});
+  assert.match(pp, /CATALYST AGE/);
+  assert.match(pp, /older than about 3 sessions/);
+});
