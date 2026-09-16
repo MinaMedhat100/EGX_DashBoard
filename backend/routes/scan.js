@@ -4,7 +4,8 @@ import { load } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
 import { analyzeOpportunities, DEFAULT_MODEL } from '../services/analystService.js';
 import { gatherNews, latestRegime } from '../services/aiContext.js';
-import { appendRun, listRuns, getRun, clearRuns } from '../services/scanHistoryStore.js';
+import { appendRun, listRuns, getRun, clearRuns, lookupPriorReads } from '../services/scanHistoryStore.js';
+import { annotateEntries } from '../services/entryGuard.js';
 
 const router = Router();
 
@@ -29,6 +30,8 @@ export function deterministicRank(candidates, cap = 8, reason = null) {
     .map((c) => ({
       ticker: c.ticker,
       sector: c.sector,
+      price: c.indicators?.price,
+      overextension: c.overextension ?? [],
       score: c.stock_score,
       tv_signal: c.indicators?.tv_signal,
       adx: c.indicators?.adx,
@@ -73,16 +76,18 @@ router.post('/scan-opportunities', async (req, res, next) => {
     ]);
 
     const candidates = scan.candidates?.length ? scan.candidates : scan.all_scanned;
+    const tickers = (candidates || []).map((c) => c.ticker);
+    // the AI's own previous read of each name — looked up before the AI call so the deterministic
+    // fallback can still annotate a chased entry zone
+    const priors = await lookupPriorReads(tickers);
     let opportunities = [];
     let fallback = false;
     let aiError = null;
     // Skip the AI call entirely when the screener returned nothing (e.g. pre-market).
     if (candidates && candidates.length) {
       try {
-        const [news, regime] = await Promise.all([
-          gatherNews((candidates || []).map((c) => c.ticker)), latestRegime(),
-        ]);
-        opportunities = await analyzeOpportunities(candidates, market, exclude, model, { context: { news, regime } });
+        const [news, regime] = await Promise.all([gatherNews(tickers), latestRegime()]);
+        opportunities = await analyzeOpportunities(candidates, market, exclude, model, { context: { news, regime, priors } });
         if (!opportunities?.length) throw new Error('empty AI result');
       } catch (e) {
         aiError = aiFailureReason(e);
@@ -92,13 +97,19 @@ router.post('/scan-opportunities', async (req, res, next) => {
       }
     }
 
-    // attach the bridge's multi-timeframe summary to each opportunity (by ticker)
-    const mtfByTicker = new Map(
-      (scan.candidates || []).map((c) => [c.ticker, c.indicators?.mtf ?? null]),
-    );
+    // Attach the bridge's per-candidate extras to each opportunity (by ticker). Build the map from
+    // `candidates` — the array actually sent to the AI, which falls back to all_scanned when
+    // nothing passes the filter — not scan.candidates, which is empty on a no-passers run.
+    const byTicker = new Map((candidates || []).map((c) => [c.ticker, c]));
+    const priceByTicker = {};
     for (const o of opportunities) {
-      if (o && o.ticker && mtfByTicker.has(o.ticker)) o.mtf = mtfByTicker.get(o.ticker);
+      const c = o && o.ticker ? byTicker.get(o.ticker) : null;
+      if (!c) continue;
+      o.mtf = c.indicators?.mtf ?? null;
+      o.overextension = c.overextension ?? [];
+      if (c.indicators?.price != null) priceByTicker[o.ticker.toUpperCase()] = c.indicators.price;
     }
+    annotateEntries(opportunities, priceByTicker, priors);
 
     const run = await appendRun({
       params,
@@ -150,15 +161,16 @@ router.post('/scan-watchlist', async (req, res, next) => {
     ]);
 
     const candidates = scan.candidates || [];
+    // NB: `tickers` above is the REQUESTED watchlist; these are the ones that actually resolved
+    const candidateTickers = candidates.map((c) => c.ticker);
+    const priors = await lookupPriorReads(candidateTickers);
     let opportunities = [];
     let fallback = false;
     let aiError = null;
     if (candidates.length) {
       try {
-        const [news, regime] = await Promise.all([
-          gatherNews(candidates.map((c) => c.ticker)), latestRegime(),
-        ]);
-        opportunities = await analyzeOpportunities(candidates, market, [], model, { mode: 'watchlist', context: { news, regime } });
+        const [news, regime] = await Promise.all([gatherNews(candidateTickers), latestRegime()]);
+        opportunities = await analyzeOpportunities(candidates, market, [], model, { mode: 'watchlist', context: { news, regime, priors } });
         if (!opportunities?.length) throw new Error('empty AI result');
       } catch (e) {
         aiError = aiFailureReason(e);
@@ -168,15 +180,18 @@ router.post('/scan-watchlist', async (req, res, next) => {
       }
     }
 
-    // attach passes_filter + mtf onto each opportunity by ticker
+    // attach passes_filter + mtf + the board's entry numbers onto each opportunity by ticker
     const byTicker = new Map(candidates.map((c) => [c.ticker, c]));
+    const priceByTicker = {};
     for (const o of opportunities) {
-      const c = byTicker.get(o.ticker);
-      if (c) {
-        o.passes_filter = c.passes_filter;
-        o.mtf = c.indicators?.mtf ?? null;
-      }
+      const c = o && o.ticker ? byTicker.get(o.ticker) : null;
+      if (!c) continue;
+      o.passes_filter = c.passes_filter;
+      o.mtf = c.indicators?.mtf ?? null;
+      o.overextension = c.overextension ?? [];
+      if (c.indicators?.price != null) priceByTicker[o.ticker.toUpperCase()] = c.indicators.price;
     }
+    annotateEntries(opportunities, priceByTicker, priors);
 
     const run = await appendRun({
       params, model, opportunities, market, ai_fallback: fallback, ai_error: aiError,

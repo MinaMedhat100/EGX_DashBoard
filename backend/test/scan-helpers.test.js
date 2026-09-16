@@ -50,3 +50,20 @@ test('deterministicRank carries the failure reason into each thesis', () => {
   // no reason given: the thesis stays exactly what it was
   assert.equal(deterministicRank(cands)[0].thesis, '(deterministic ranking — AI analysis unavailable)');
 });
+
+test('deterministicRank carries price and overextension so cards survive an AI outage', () => {
+  const out = deterministicRank(
+    [{
+      ticker: 'ALUM',
+      stock_score: 80,
+      overextension: ['rsi_at_band_ceiling'],
+      indicators: { price: 29.6, adx: 42, rsi: 69.9 },
+      suggested: { entry_zone: [28.6, 29.6], stop: 27, t1: 31, t2: 34 },
+    }],
+    8,
+    'Claude CLI is not logged in',
+  );
+  assert.equal(out[0].price, 29.6);
+  assert.deepEqual(out[0].overextension, ['rsi_at_band_ceiling']);
+  assert.match(out[0].thesis, /deterministic ranking/);
+});
