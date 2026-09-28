@@ -29,3 +29,5 @@ backend/data/*.backup.json
 backend/data/watchlist.json
 backend/data/indices_snapshot.json
 backend/data/gold_state.json
+backend/data/journal.json
+backend/data/*.tmp
