@@ -19,7 +19,8 @@ with any matching card from scan history marked as a match rather than as the ca
 is the first of three steps toward the board reviewing its own trades.
 
 **The AI analysis now runs on Claude Opus 5.5** by default, instead of Opus 5. It costs less per
-token. `ANALYSIS_MODEL` still overrides it.
+token. `ANALYSIS_MODEL` still overrides it. Opus 5.5 needs a current Claude Code CLI: 2.1.270
+rejected it as an unrecognised model and every AI refresh failed until `claude update` (to 2.1.286).
 
 ## 2.5.2
 
