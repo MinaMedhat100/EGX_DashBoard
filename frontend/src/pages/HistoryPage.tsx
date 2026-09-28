@@ -1,5 +1,7 @@
+import { Fragment, useState } from 'react';
 import type { PortfolioData } from '../types/portfolio';
 import { GlowCard } from '../components/common/GlowCard';
+import { JournalTimeline } from '../components/journal/JournalTimeline';
 import { fmtNum, fmtEgp } from '../lib/format';
 
 const TYPE_COLOR: Record<string, string> = {
@@ -15,6 +17,7 @@ function pnlClass(v: number | null) {
 }
 
 export function HistoryPage({ data }: { data: PortfolioData }) {
+  const [openTrade, setOpenTrade] = useState<string | null>(null);
   const exitedTotal = data.exited_positions.reduce((s, e) => s + (e.realized_pnl ?? 0), 0);
 
   return (
@@ -80,26 +83,44 @@ export function HistoryPage({ data }: { data: PortfolioData }) {
               <th className="pr-3 text-right">Exit</th>
               <th className="pr-3 text-right">Avg Cost</th>
               <th className="text-right">P&L</th>
+              <th className="pl-3" />
             </tr>
           </thead>
           <tbody>
             {data.exited_positions.map((e, i) => (
-              <tr key={`${e.ticker}-${i}`} className="border-b border-border hover:bg-surface">
-                <td className="py-1.5 pr-3 font-semibold">
-                  {e.ticker}
-                  {e.approximate && <span className="text-txt-secondary text-[10px] ml-1">~</span>}
-                </td>
-                <td className="pr-3 text-txt-secondary whitespace-nowrap">{e.exit_date}</td>
-                <td className="pr-3">
-                  <span className="text-[11px] font-semibold" style={{ color: TYPE_COLOR[e.exit_type] ?? 'rgb(var(--muted))' }}>
-                    {e.exit_type}
-                  </span>
-                </td>
-                <td className="pr-3 text-right font-mono">{e.shares?.toLocaleString() ?? '—'}</td>
-                <td className="pr-3 text-right font-mono">{fmtNum(e.exit_price)}</td>
-                <td className="pr-3 text-right font-mono">{fmtNum(e.avg_cost)}</td>
-                <td className={`text-right font-mono ${pnlClass(e.realized_pnl)}`}>{fmtEgp(e.realized_pnl)}</td>
-              </tr>
+              <Fragment key={`${e.ticker}-${i}`}>
+                <tr className="border-b border-border hover:bg-surface">
+                  <td className="py-1.5 pr-3 font-semibold">
+                    {e.ticker}
+                    {e.approximate && <span className="text-txt-secondary text-[10px] ml-1">~</span>}
+                  </td>
+                  <td className="pr-3 text-txt-secondary whitespace-nowrap">{e.exit_date}</td>
+                  <td className="pr-3">
+                    <span className="text-[11px] font-semibold" style={{ color: TYPE_COLOR[e.exit_type] ?? 'rgb(var(--muted))' }}>
+                      {e.exit_type}
+                    </span>
+                  </td>
+                  <td className="pr-3 text-right font-mono">{e.shares?.toLocaleString() ?? '—'}</td>
+                  <td className="pr-3 text-right font-mono">{fmtNum(e.exit_price)}</td>
+                  <td className="pr-3 text-right font-mono">{fmtNum(e.avg_cost)}</td>
+                  <td className={`text-right font-mono ${pnlClass(e.realized_pnl)}`}>{fmtEgp(e.realized_pnl)}</td>
+                  <td className="pl-3 text-right">
+                    {e.trade_id && (
+                      <button
+                        onClick={() => setOpenTrade((t) => (t === e.trade_id ? null : e.trade_id ?? null))}
+                        className="text-[11px] text-accent-purple-lt hover:text-txt-primary whitespace-nowrap"
+                      >
+                        📓 {openTrade === e.trade_id ? 'Hide' : 'Journal'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+                {openTrade && openTrade === e.trade_id && (
+                  <tr className="border-b border-border">
+                    <td colSpan={8} className="pb-2"><JournalTimeline tradeId={openTrade} /></td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

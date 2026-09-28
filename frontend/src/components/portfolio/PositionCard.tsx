@@ -6,6 +6,7 @@ import { MtfBadge } from '../common/MtfBadge';
 import { PriceChange } from '../common/PriceChange';
 import { PriceRangeBar } from './PriceRangeBar';
 import { AnalysisPanel } from './AnalysisPanel';
+import { JournalTimeline } from '../journal/JournalTimeline';
 import { STATUS_META, fmtNum, fmtEgp, fmtPct } from '../../lib/format';
 import { positionR, volatilityPct, volatilityLabel, fmtR } from '../../lib/risk';
 import { entryPriceSuspect } from '../../lib/entryGuard';
@@ -50,6 +51,7 @@ export function PositionCard({
   onCorrectEntry: (ticker: string, entry: { shares: number; avg_cost: number }) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [eStop, setEStop] = useState('');
   const [eStopB, setEStopB] = useState('');
@@ -410,14 +412,25 @@ export function PositionCard({
         </div>
       )}
 
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="mt-3 text-xs text-accent-purple-lt hover:text-txt-primary transition flex items-center gap-1.5"
-      >
-        {open ? '▲ Hide analysis' : '▼ Show full analysis'}
-        {p.ai && !open && <span className="text-[10px] text-accent-cyan">· AI ready</span>}
-      </button>
+      <div className="mt-3 flex items-center gap-4">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="text-xs text-accent-purple-lt hover:text-txt-primary transition flex items-center gap-1.5"
+        >
+          {open ? '▲ Hide analysis' : '▼ Show full analysis'}
+          {p.ai && !open && <span className="text-[10px] text-accent-cyan">· AI ready</span>}
+        </button>
+        {p.trade_id && (
+          <button onClick={() => setJournalOpen((o) => !o)} className="text-xs text-accent-purple-lt hover:text-txt-primary transition">
+            📓 {journalOpen ? 'Hide journal' : 'Journal'}
+          </button>
+        )}
+      </div>
 
+      {/* keyed on the latest read and stop so an open timeline refetches after a Refresh or Apply */}
+      {journalOpen && p.trade_id && (
+        <JournalTimeline key={`${p.trade_id}-${p.ai?.analyzed_at ?? ''}-${p.stop_loss}-${p.shares}`} tradeId={p.trade_id} />
+      )}
       {open && <AnalysisPanel p={p} />}
     </GlowCard>
   );
