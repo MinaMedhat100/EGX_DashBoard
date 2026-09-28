@@ -54,7 +54,7 @@ export function LogOrderModal({
   initialTicker: string;
   prefill?: OrderPrefill;
   positions: Position[];
-  onApplied: (portfolio: PortfolioData, ticker: string, type: OrderType, toast: string) => void;
+  onApplied: (portfolio: PortfolioData, ticker: string, type: OrderType, toast: string, journalWarning?: string) => void;
 }) {
   const [type, setType] = useState<OrderType>('STOP_OUT');
   const [ticker, setTicker] = useState(initialTicker);
@@ -189,8 +189,12 @@ export function LogOrderModal({
         payload.lot = lot; // shares are derived per-lot on the backend
         delete payload.shares;
       }
+      // the card rides along only on a new buy of the ticker it was scanned for (v2.6.0)
+      if (type === 'BUY_NEW' && prefill?.card && prefill.card.ticker.toUpperCase() === ticker.toUpperCase()) {
+        payload.card = prefill.card;
+      }
       const res = await api.logOrder(payload);
-      onApplied(res.portfolio, ticker.toUpperCase(), type, res.toast || 'Portfolio updated');
+      onApplied(res.portfolio, ticker.toUpperCase(), type, res.toast || 'Portfolio updated', res.journal_warning);
       onClose();
     } catch (e) {
       setError((e as Error).message);

@@ -100,6 +100,8 @@ export interface Position {
   mtf?: Mtf | null;
   indicators?: Record<string, unknown>;
   brackets?: Brackets | null;
+  /** journal record id (v2.6.0) */
+  trade_id?: string;
 }
 
 /** classic positions use stop; brackets use stop_a / stop_b (null = that lot's stop unchanged) */
@@ -118,6 +120,8 @@ export interface LevelsInput {
   stop_b?: number;
   t1: number;
   t2: number;
+  /** who asked for the change — recorded in the trade journal (v2.6.0) */
+  source?: 'ai' | 'manual';
 }
 
 export interface OrderPrefill {
@@ -129,6 +133,8 @@ export interface OrderPrefill {
   split?: number;
   waitFor?: string;
   entryGuard?: { level: number; above_pct: number } | null;
+  /** the opportunity card the order was logged from — frozen into the trade journal (v2.6.0) */
+  card?: JournalCard;
 }
 
 export interface RefreshAiResult {
@@ -138,6 +144,7 @@ export interface RefreshAiResult {
   proposal?: LevelProposal;
   error?: string;
   live_error?: string | null;
+  journal_warning?: string;
 }
 
 export interface ActionLogEntry {
@@ -163,6 +170,7 @@ export interface ExitedPosition {
   realized_pnl: number | null;
   exit_type: string;
   approximate?: boolean;
+  trade_id?: string;
 }
 
 export interface BookAi {
@@ -295,6 +303,8 @@ export interface ScanResponse {
   raw: { scanned: number; passed: number };
   model: string;
   mode?: 'market' | 'watchlist';
+  run_id?: string;
+  timestamp?: string;
 }
 
 export interface IndexAi {
@@ -390,4 +400,49 @@ export interface GoldState {
   snapshot: GoldSnapshot | null;
   position: GoldPosition | null;
   realized_pnl_usd: number;
+}
+
+// ── trade journal (v2.6.0) ─────────────────────────────────────────────────────
+export interface ScanRef { id: string | null; timestamp: string | null }
+
+export interface JournalCard extends Opportunity {
+  scan_run_id?: string | null;
+  scan_as_of?: string | null;
+}
+
+export interface JournalLevels {
+  stop?: number | null;
+  t1?: number | null;
+  t2?: number | null;
+  lots?: Record<string, { stop: number | null; tp: number | null; open: boolean }>;
+}
+
+export type JournalEvent =
+  | {
+      at: string; kind: 'ai_read'; source: string; price: number | null;
+      indicators: Record<string, number | null>;
+      recommendation: string | null; conviction: number | null; thesis: string; key_risk: string; action_line: string;
+      suggested: { stop: number | null; stop_a: number | null; stop_b: number | null; t1: number | null; t2: number | null };
+      stop_guard: unknown; vs_prior: string | null; change_reason: string; model: string | null;
+    }
+  | { at: string; kind: 'levels'; source: string; from: JournalLevels | null; to: JournalLevels }
+  | { at: string; kind: 'order'; type: string; lot: string | null; shares: number | null; price: number | null; date: string; realized_pnl: number | null }
+  | { at: string; kind: 'correction'; from: { shares: number; avg_cost: number } | null; to: { shares: number | null; avg_cost: number | null }; date?: string }
+  | { at: string; kind: 'gap'; note: string };
+
+export interface TradeJournal {
+  trade_id: string;
+  ticker: string;
+  status: 'open' | 'closed';
+  opened_at: string | null;
+  closed_at: string | null;
+  origin: 'card' | 'no_card' | 'seeded' | 'reconstructed';
+  card_source: 'logged' | 'scan_history_match' | null;
+  entry: {
+    price: number | null; shares: number | null; mode: 'bracket' | 'classic' | null; split: number | null;
+    stop: number | null; t1: number | null; t2: number | null; levels_known: boolean;
+  } | null;
+  card: JournalCard | null;
+  events: JournalEvent[];
+  exit: { date: string | null; price: number | null; type: string; realized_pnl: number | null; approximate: boolean } | null;
 }

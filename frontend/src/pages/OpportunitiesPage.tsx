@@ -7,7 +7,7 @@ import { MarketStrip } from '../components/opportunities/MarketStrip';
 import { ScanControls } from '../components/opportunities/ScanControls';
 import { WatchlistEditor } from '../components/opportunities/WatchlistEditor';
 import { OpportunityCard } from '../components/opportunities/OpportunityCard';
-import type { Opportunity } from '../types/portfolio';
+import type { Opportunity, ScanRef } from '../types/portfolio';
 import { GlowCard } from '../components/common/GlowCard';
 
 function ScanningState({ phase }: { phase: 'scanning' | 'analyzing' }) {
@@ -29,7 +29,7 @@ function runLabel(ts: string) {
   return Number.isNaN(d.getTime()) ? ts : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function OpportunitiesPage({ onLogOpportunity }: { onLogOpportunity?: (o: Opportunity) => void }) {
+export function OpportunitiesPage({ onLogOpportunity }: { onLogOpportunity?: (o: Opportunity, scan: ScanRef) => void }) {
   const market = useMarketOverview();
   const scan = useScan();
   const history = useScanHistory();
@@ -62,6 +62,10 @@ export function OpportunitiesPage({ onLogOpportunity }: { onLogOpportunity?: (o:
   const aiFailed = viewing ? viewing.ai_fallback : !!scan.meta?.aiFallback;
   const aiReason = viewing ? viewing.ai_error : scan.meta?.aiError;
   const newsDown = viewing ? !!viewing.news_unavailable : !!scan.meta?.newsUnavailable;
+  // which scan a card came from — frozen into the trade journal with the card (v2.6.0)
+  const scanRef: ScanRef = viewing
+    ? { id: viewing.id, timestamp: viewing.timestamp }
+    : { id: scan.meta?.runId ?? null, timestamp: scan.meta?.timestamp ?? null };
 
   return (
     <div className="space-y-5">
@@ -165,7 +169,7 @@ export function OpportunitiesPage({ onLogOpportunity }: { onLogOpportunity?: (o:
       {!scan.busy && shownOpps && shownOpps.length > 0 && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {shownOpps.map((o, i) => (
-            <OpportunityCard key={`${o.ticker}-${i}`} o={o} onLog={onLogOpportunity} />
+            <OpportunityCard key={`${o.ticker}-${i}`} o={o} onLog={onLogOpportunity ? (o) => onLogOpportunity(o, scanRef) : undefined} />
           ))}
         </div>
       )}

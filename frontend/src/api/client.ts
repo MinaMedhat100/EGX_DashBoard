@@ -10,6 +10,7 @@ import type {
   RefreshAiResult,
   LevelProposal,
   LevelsInput,
+  TradeJournal,
   ScanResponse,
   ScanParamsDto,
   IndexSnapshot,
@@ -54,6 +55,7 @@ export const api = {
       positions: Position[];
       book_ai?: BookAi | null;
       proposals?: Record<string, LevelProposal>;
+      journal_warning?: string;
     }>('/analyze', { method: 'POST', body: JSON.stringify({ model }) }),
 
   scan: (params: ScanParamsDto) =>
@@ -101,7 +103,7 @@ export const api = {
     ),
 
   logOrder: (payload: Record<string, unknown>) =>
-    req<{ ok: boolean; portfolio: PortfolioData; toast?: string }>('/orders', {
+    req<{ ok: boolean; portfolio: PortfolioData; toast?: string; journal_warning?: string }>('/orders', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
@@ -113,14 +115,17 @@ export const api = {
     ),
 
   applyLevels: (ticker: string, levels: LevelsInput) =>
-    req<{ ok: boolean; position: Position }>(
+    req<{ ok: boolean; position: Position; journal_warning?: string }>(
       `/positions/${encodeURIComponent(ticker)}/apply-levels`,
       { method: 'POST', body: JSON.stringify(levels) },
     ),
 
   correctEntry: (ticker: string, entry: { shares: number; avg_cost: number }) =>
-    req<{ ok: boolean; portfolio: PortfolioData; toast: string }>(
+    req<{ ok: boolean; portfolio: PortfolioData; toast: string; journal_warning?: string }>(
       `/positions/${encodeURIComponent(ticker)}/correct-entry`,
       { method: 'POST', body: JSON.stringify(entry) },
     ),
+
+  getJournal: (tradeId: string) =>
+    req<{ ok: boolean; trade: TradeJournal }>(`/journal/${encodeURIComponent(tradeId)}`),
 };

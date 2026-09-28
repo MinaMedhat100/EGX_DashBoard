@@ -305,6 +305,7 @@ export function PositionCard({
               onClick={() => {
                 onApplyLevels(p.ticker, {
                   stop_a: Number(eStop) || 0, stop_b: Number(eStopB) || 0, t1: Number(eT1) || 0, t2: Number(eT2) || 0,
+                  source: 'manual',
                 });
                 setEditing(false);
               }}
@@ -339,7 +340,7 @@ export function PositionCard({
           <div className="flex gap-2 mt-2">
             <button
               onClick={() => {
-                onApplyLevels(p.ticker, { stop: Number(eStop) || 0, t1: Number(eT1) || 0, t2: Number(eT2) || 0 });
+                onApplyLevels(p.ticker, { stop: Number(eStop) || 0, t1: Number(eT1) || 0, t2: Number(eT2) || 0, source: 'manual' });
                 setEditing(false);
               }}
               className="btn-primary px-3 py-1 text-xs"
@@ -392,11 +393,13 @@ export function PositionCard({
                     stop_b: proposal.stop_b ?? lotB?.stop ?? 0,
                     t1: proposal.t1 ?? p.t1_price,
                     t2: proposal.t2 ?? p.t2_price,
+                    source: 'ai',
                   }
                 : {
                     stop: proposal.stop ?? p.stop_loss,
                     t1: proposal.t1 ?? p.t1_price,
                     t2: proposal.t2 ?? p.t2_price,
+                    source: 'ai',
                   })}
               className="btn-primary px-3 py-1 text-xs"
             >

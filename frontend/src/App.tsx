@@ -12,7 +12,7 @@ import { GoldxPage } from './pages/GoldxPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { GlowCard } from './components/common/GlowCard';
 import { LogOrderModal } from './components/orders/LogOrderModal';
-import type { PortfolioData, LevelProposal, LevelsInput, Position, Opportunity, OrderPrefill } from './types/portfolio';
+import type { PortfolioData, LevelProposal, LevelsInput, Position, Opportunity, OrderPrefill, ScanRef } from './types/portfolio';
 
 function LoadingState() {
   return (
@@ -30,6 +30,8 @@ function LoadingState() {
 
 function Shell() {
   const toast = useToast();
+  // the journal never blocks a trade, but a failed write must not pass silently (v2.6.0)
+  const noteJournal = (w?: string | null) => { if (w) toast(w, 'error'); };
   const { data, setData, loading, error, applyPositions } = usePortfolio();
   const refresh = useRefresh(applyPositions);
   const [tab, setTab] = useState<Tab>('portfolio');
@@ -49,6 +51,7 @@ function Shell() {
   const doRefresh = async () => {
     const r = await refresh.run();
     if (r.ok && r.aiOk) {
+      noteJournal(r.journal_warning);
       setData((d) => (d ? { ...d, book_ai: r.book_ai ?? null } : d));
       setProposals(r.proposals ?? {});
       const n = Object.keys(r.proposals ?? {}).length;
@@ -59,7 +62,7 @@ function Shell() {
 
   const onLogOrder = (ticker: string) => setOrderModal({ open: true, ticker });
 
-  const onLogOpportunity = (o: Opportunity) =>
+  const onLogOpportunity = (o: Opportunity, scan?: ScanRef) =>
     setOrderModal({
       open: true,
       ticker: o.ticker,
@@ -72,6 +75,7 @@ function Shell() {
         split: o.split?.[0] ?? 50,
         waitFor: o.wait_for,
         entryGuard: o.entry_guard ?? null,
+        card: { ...o, scan_run_id: scan?.id ?? null, scan_as_of: scan?.timestamp ?? null },
       },
     });
 
@@ -79,6 +83,7 @@ function Shell() {
     setAiUpdating(ticker);
     try {
       const r = await api.refreshAi(ticker);
+      noteJournal(r.journal_warning);
       applyPositions([r.position]);
       if (r.applied) toast(`AI set levels for ${ticker}`, 'success');
       else if (r.proposal) {
@@ -98,9 +103,10 @@ function Shell() {
     }
   };
 
-  const onOrderApplied = (portfolio: PortfolioData, ticker: string, _type: string, msg: string) => {
+  const onOrderApplied = (portfolio: PortfolioData, ticker: string, _type: string, msg: string, journalWarning?: string) => {
     setData(portfolio);
     toast(msg, 'success');
+    noteJournal(journalWarning);
     // Run the AI on the new position — classic: set pending levels; bracket: verify the placed
     // levels (and later manage the runner), surfacing an advisory Apply chip only on disagreement.
     if (ticker) runAiUpdate(ticker);
@@ -109,6 +115,7 @@ function Shell() {
   const onApplyLevels = async (ticker: string, levels: LevelsInput) => {
     try {
       const r = await api.applyLevels(ticker, levels);
+      noteJournal(r.journal_warning);
       applyPositions([r.position]);
       setProposals((m) => { const n = { ...m }; delete n[ticker]; return n; });
       toast(`${ticker}: levels updated`, 'success');
@@ -120,6 +127,7 @@ function Shell() {
   const onCorrectEntry = async (ticker: string, entry: { shares: number; avg_cost: number }) => {
     try {
       const r = await api.correctEntry(ticker, entry);
+      noteJournal(r.journal_warning);
       setData(r.portfolio);
       toast(r.toast || `${ticker}: entry corrected`, 'success');
     } catch (e) {

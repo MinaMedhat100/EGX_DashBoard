@@ -26,11 +26,13 @@ export function useRefresh(applyPositions: (p: Position[], last?: string) => voi
       setPhase('analyzing');
       let book_ai = null;
       let proposals: Record<string, LevelProposal> = {};
+      let journal_warning: string | null = null;
       try {
         const a = await api.analyze(model);
         applyPositions(a.positions);
         book_ai = a.book_ai ?? null;
         proposals = a.proposals ?? {};
+        journal_warning = a.journal_warning ?? null;
       } catch (e) {
         setError(`AI analysis failed: ${(e as Error).message}`);
         setPhase('idle');
@@ -38,7 +40,7 @@ export function useRefresh(applyPositions: (p: Position[], last?: string) => voi
       }
 
       setPhase('idle');
-      return { ok: true, aiOk: true, book_ai, proposals };
+      return { ok: true, aiOk: true, book_ai, proposals, journal_warning };
     },
     [applyPositions],
   );
