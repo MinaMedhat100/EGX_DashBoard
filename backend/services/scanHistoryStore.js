@@ -58,6 +58,11 @@ export async function getRun(id) {
   return (await readAll()).find((r) => r.id === id) || null;
 }
 
+// Every stored run with its full opportunities (newest first) — for the one-off journal backfill.
+export async function allRuns() {
+  return readAll();
+}
+
 export async function clearRuns() {
   await writeAll([]);
 }
