@@ -8,7 +8,7 @@ import { copyFile, access } from 'node:fs/promises';
 import { DATA_FILE, load, save } from '../services/portfolioStore.js';
 import { JOURNAL_FILE, loadJournal, saveJournal } from '../services/journalStore.js';
 import { allRuns } from '../services/scanHistoryStore.js';
-import { buildBackfill, pendingTrades, applyBackfill } from '../services/journalBackfill.js';
+import { buildBackfill, pendingTrades, pendingPartials, applyBackfill } from '../services/journalBackfill.js';
 
 const dryRun = process.argv.includes('--dry-run');
 const now = new Date().toISOString();
@@ -26,14 +26,22 @@ const data = await load();
 const journal = await loadJournal();
 const built = buildBackfill(data, await allRuns(), { today, now });
 const todo = pendingTrades(data, journal, built);
+const links = pendingPartials(data, built);
 
 console.log(`${todo.length} trade(s) to add${dryRun ? ' (dry run: nothing written)' : ''}:\n`);
 for (const t of todo) console.log(`  ${describe(t)}`);
+if (links.length) {
+  console.log(`\nPartial-exit records linked to their trade (${links.length}):`);
+  for (const { index, trade } of links) {
+    const x = data.exited_positions[index];
+    console.log(`  exit #${index} ${x.ticker} ${x.exit_type} ${x.shares}sh @ ${x.exit_price} on ${x.exit_date} -> ${trade.trade_id}`);
+  }
+}
 if (built.unmatched.length) {
   console.log(`\nCould not match (${built.unmatched.length}):`);
   for (const u of built.unmatched) console.log(`  - ${u}`);
 }
-if (dryRun || !todo.length) process.exit(0);
+if (dryRun || (!todo.length && !links.length)) process.exit(0);
 
 const stamp = now.replace(/[:.]/g, '-');
 await copyFile(DATA_FILE, DATA_FILE.replace(/\.json$/, `.${stamp}.backup.json`));
@@ -42,7 +50,7 @@ try {
   await copyFile(JOURNAL_FILE, JOURNAL_FILE.replace(/\.json$/, `.${stamp}.backup.json`));
 } catch { /* no journal yet — nothing to back up */ }
 
-const { added } = applyBackfill(data, journal, built);
+const { added, linked } = applyBackfill(data, journal, built);
 await saveJournal(journal); // journal first: a trade_id on a position must never point at nothing
 await save(data);
-console.log(`\nWrote ${added} trade(s). Backups: backend/data/*.${stamp}.backup.json`);
+console.log(`\nWrote ${added} trade(s), linked ${linked} partial-exit record(s). Backups: backend/data/*.${stamp}.backup.json`);

@@ -21,7 +21,8 @@ export function randomSuffix(bytes = randomBytes(4)) {
 }
 
 export function newTradeId(ticker, date, suffix = randomSuffix()) {
-  return `${String(ticker).toUpperCase()}-${date}-${suffix}`;
+  // legacy tickers can carry a label ("EFIH T1"); keep ids free of whitespace
+  return `${String(ticker).toUpperCase().replace(/\s+/g, '_')}-${date}-${suffix}`;
 }
 
 export function todayIso() {

@@ -92,7 +92,8 @@ export function JournalTimeline({ tradeId }: { tradeId: string }) {
       {items.map((it) => <EventLine key={it.key} e={it.event} repeats={it.repeats.length} />)}
       {trade.exit && (
         <div className={trade.exit.realized_pnl != null && trade.exit.realized_pnl < 0 ? 'text-status-red' : 'text-status-green'}>
-          {trade.exit.date?.slice(5) ?? '—'} · Closed {trade.exit.type} @ {fmtNum(trade.exit.price)}
+          {trade.exit.date ? (/^\d{4}-\d{2}-\d{2}$/.test(trade.exit.date) ? trade.exit.date.slice(5) : trade.exit.date) : '—'}
+          {' '}· Closed {trade.exit.type} @ {fmtNum(trade.exit.price)}
           {trade.exit.realized_pnl != null ? ` · ${fmtEgp(trade.exit.realized_pnl)}` : ''}
         </div>
       )}

@@ -50,10 +50,26 @@ function correctionFrom(e) {
   return m ? { shares: Number(m[1]), avg_cost: Number(m[2]) } : null;
 }
 
+// `date` is the normalised exit date, or null when the legacy text can't be read ("~May–Jun 2026") —
+// the record then keeps that text so the timeline shows what was written rather than nothing.
 function finishClosed(trade, x, date) {
   trade.status = 'closed';
   trade.closed_at = date;
-  trade.exit = { date, price: n(x.exit_price), type: x.exit_type, realized_pnl: n(x.realized_pnl), approximate: !!x.approximate };
+  trade.exit = { date: date ?? x.exit_date ?? null, price: n(x.exit_price), type: x.exit_type, realized_pnl: n(x.realized_pnl), approximate: !!x.approximate };
+}
+
+// The old log sometimes records an add before its buy on the same day. Within one date, process buys,
+// then adds, then corrections, then exits (a same-day stop-out and re-buy merge into one trade — the
+// conservative reading — rather than pairing an add or exit with no trade open).
+const SAME_DAY_RANK = { buy: 0, add: 1, correct: 2, exit: 3 };
+const dayRank = (e) => SAME_DAY_RANK[parseLogType(e.type).kind] ?? 4;
+
+// An exited_positions record that is really a partial exit of a longer trade (older versions wrote those
+// there): it matches one of the trade's own sell / stop-out events exactly.
+function isPartialOf(trade, c) {
+  const type = c.x.exit_type === 'STOP-OUT' ? 'STOP_OUT' : 'SELL';
+  return trade.events.some((e) => e.kind === 'order' && e.type === type && e.date === c.date
+    && n(e.shares) === n(c.x.shares) && n(e.price) != null && Math.round(e.price * 100) === Math.round(n(c.x.exit_price) * 100));
 }
 
 // One ticker's log entries, oldest first, with a running share count: a buy opens a trade, adds raise
@@ -115,7 +131,7 @@ export function buildBackfill(data, runs = [], { today, now, idFor = newTradeId 
   const openByTicker = new Map();
 
   for (const [ticker, list] of byTicker) {
-    list.sort((a, b) => (a.date_iso ?? '').localeCompare(b.date_iso ?? '') || a.seq - b.seq);
+    list.sort((a, b) => (a.date_iso ?? '').localeCompare(b.date_iso ?? '') || dayRank(a) - dayRank(b) || a.seq - b.seq);
     const { closed, open, notes } = walkTicker(ticker, list, now);
     unmatched.push(...notes);
     for (const { trade, closeDate } of closed) {
@@ -131,6 +147,22 @@ export function buildBackfill(data, runs = [], { today, now, idFor = newTradeId 
       trades.push({ trade, target: { kind: 'exit', index: match.index } });
     }
     if (open) openByTicker.set(ticker, open);
+  }
+
+  // legacy partial-exit records belong to the trade they were part of (closed trades, and open trades
+  // that are still held — an open trade that isn't held never gets an id, so it can't own a record)
+  const held = new Set((data.positions || []).map((p) => p.ticker));
+  const owners = [
+    ...trades.map((t) => t.trade),
+    ...[...openByTicker].filter(([t]) => held.has(t)).map(([, trade]) => trade),
+  ];
+  const partials = [];
+  for (const c of exits) {
+    if (c.used || !c.date) continue;
+    const owner = owners.find((t) => t.ticker === c.x.ticker && isPartialOf(t, c));
+    if (!owner) continue;
+    c.used = true;
+    partials.push({ index: c.index, trade: owner });
   }
 
   // exits whose buy never made it into the log (legacy entries)
@@ -156,7 +188,8 @@ export function buildBackfill(data, runs = [], { today, now, idFor = newTradeId 
   for (const [ticker] of openByTicker) unmatched.push(`${ticker} is still open in the log, but not held`);
 
   for (const { trade } of trades) {
-    trade.trade_id = idFor(trade.ticker, trade.opened_at ?? trade.closed_at ?? today);
+    // an open position's journal starts today; a closed trade with no readable date is 'undated'
+    trade.trade_id = idFor(trade.ticker, trade.opened_at ?? trade.closed_at ?? (trade.status === 'open' ? today : 'undated'));
     if (trade.opened_at) {
       const card = matchCard(runs, trade.ticker, trade.opened_at);
       if (card) {
@@ -165,7 +198,7 @@ export function buildBackfill(data, runs = [], { today, now, idFor = newTradeId 
       }
     }
   }
-  return { trades, unmatched };
+  return { trades, partials, unmatched };
 }
 
 // Idempotence: skip anything whose position/exit already carries a trade_id, or whose id is known.
@@ -178,12 +211,18 @@ export function pendingTrades(data, journal, built) {
   });
 }
 
+export function pendingPartials(data, built) {
+  return (built.partials || []).filter(({ index }) => !data.exited_positions[index]?.trade_id);
+}
+
 export function applyBackfill(data, journal, built) {
   const todo = pendingTrades(data, journal, built);
+  const links = pendingPartials(data, built);
   for (const { trade, target } of todo) {
     if (target.kind === 'exit') data.exited_positions[target.index].trade_id = trade.trade_id;
     else data.positions.find((p) => p.ticker === target.ticker).trade_id = trade.trade_id;
     journal.trades.push(trade);
   }
-  return { added: todo.length };
+  for (const { index, trade } of links) data.exited_positions[index].trade_id = trade.trade_id;
+  return { added: todo.length, linked: links.length };
 }

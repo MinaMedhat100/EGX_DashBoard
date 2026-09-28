@@ -128,11 +128,70 @@ test('what cannot be matched is reported, not invented', () => {
   assert.match(built.unmatched.join('\n'), /ADDS closed 2026-07-06 in the log, but no exited position matches/);
 });
 
+test('on one date, buys come before adds and adds before exits, whatever order they were logged in', () => {
+  const d = {
+    positions: [],
+    action_log: newestFirst([
+      { id: '1', date: '2026-06-08', type: 'BUY (add)', ticker: 'SAME', shares: 100, price: 10 },
+      { id: '2', date: '2026-06-08', type: 'BUY', ticker: 'SAME', shares: 200, price: 10.5 },
+      { id: '3', date: '2026-06-14', type: 'STOP-OUT', ticker: 'SAME', shares: 200, price: 9.8 },
+      { id: '4', date: '2026-06-30', type: 'STOP-OUT', ticker: 'SAME', shares: 100, price: 9.5 },
+    ]),
+    exited_positions: [{ ticker: 'SAME', exit_date: '2026-06-30', exit_price: 9.5, shares: 100, avg_cost: 10, realized_pnl: -50, exit_type: 'STOP-OUT' }],
+  };
+  const built = buildBackfill(d, [], opts);
+  assert.equal(built.trades.length, 1);
+  const [{ trade, target }] = built.trades;
+  assert.equal(trade.entry.price, 10.5);
+  assert.equal(trade.closed_at, '2026-06-30');
+  assert.deepEqual(trade.events.map((e) => e.type), ['BUY_ADD', 'STOP_OUT', 'STOP_OUT']);
+  assert.deepEqual(target, { kind: 'exit', index: 0 });
+  assert.deepEqual(built.unmatched, []);
+});
+
+test('a legacy partial-exit record is linked to its trade, not turned into a separate trade', () => {
+  const d = {
+    positions: [],
+    action_log: newestFirst([
+      { id: '1', date: '2026-06-08', type: 'BUY', ticker: 'PART', shares: 1000, price: 10 },
+      { id: '2', date: '2026-06-09', type: 'STOP-OUT', ticker: 'PART', shares: 1000, price: 9 },
+      { id: '3', date: '2026-06-09', type: 'BUY (add)', ticker: 'PART', shares: 350, price: 9.5 },
+      { id: '4', date: '2026-07-05', type: 'SELL', ticker: 'PART', shares: 350, price: 11 },
+    ]),
+    exited_positions: [
+      { ticker: 'PART', exit_date: '2026-07-05', exit_price: 11, shares: 350, avg_cost: 9.5, realized_pnl: 525, exit_type: 'SELL' },
+      { ticker: 'PART', exit_date: 'Jun 9, 2026', exit_price: 9, shares: 1000, avg_cost: 10, realized_pnl: -1000, exit_type: 'STOP-OUT' },
+    ],
+  };
+  const built = buildBackfill(d, [], opts);
+  assert.equal(built.trades.length, 1);
+  assert.equal(built.partials.length, 1);
+  assert.equal(built.partials[0].index, 1);
+  const j = emptyJournal();
+  const r = applyBackfill(d, j, built);
+  assert.deepEqual(r, { added: 1, linked: 1 });
+  assert.equal(d.exited_positions[0].trade_id, 'PART-2026-06-08-test');
+  assert.equal(d.exited_positions[1].trade_id, 'PART-2026-06-08-test');
+  assert.deepEqual(applyBackfill(d, j, buildBackfill(d, [], opts)), { added: 0, linked: 0 });
+});
+
+test('an undated legacy exit keeps its original date text and gets an "undated" id', () => {
+  const d = {
+    positions: [], action_log: [],
+    exited_positions: [{ ticker: 'UNDT', exit_date: '~May–Jun 2026', exit_price: null, shares: null, avg_cost: null, exit_type: 'SELL', approximate: true }],
+  };
+  const [{ trade }] = buildBackfill(d, [], opts).trades;
+  assert.equal(trade.trade_id, 'UNDT-undated-test');
+  assert.equal(trade.closed_at, null);
+  assert.equal(trade.exit.date, '~May–Jun 2026');
+});
+
 test('applyBackfill stamps trade_ids and merges trades; a second run changes nothing', () => {
   const d = data();
   const j = emptyJournal();
   const first = applyBackfill(d, j, buildBackfill(d, runs, opts));
   assert.equal(first.added, 6);
+  assert.equal(first.linked, 0);
   assert.equal(d.positions[0].trade_id, 'OPEN-2026-09-01-test');
   assert.ok(d.exited_positions.every((e) => e.trade_id));
   const snapshot = JSON.stringify({ d, j });

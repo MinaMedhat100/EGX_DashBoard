@@ -25,6 +25,7 @@ test('newTradeId is TICKER-date-suffix with a 4-char suffix', () => {
   assert.equal(newTradeId('brkt', '2026-09-28', 'ab12'), 'BRKT-2026-09-28-ab12');
   assert.match(newTradeId('BRKT', '2026-09-28'), /^BRKT-2026-09-28-[a-z0-9]{4}$/);
   assert.equal(randomSuffix(Buffer.from([0, 1, 35, 36])), 'ab9a');
+  assert.equal(newTradeId('efih t1', 'undated', 'ab12'), 'EFIH_T1-undated-ab12'); // legacy tickers with spaces
 });
 
 test('levelsSnapshot: classic stop/t1/t2, bracket per lot with open flags', () => {
