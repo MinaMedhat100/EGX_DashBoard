@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.6.0
+
+**The board now keeps a journal of every trade.** Until now it forgot its own decisions: each Refresh
+replaced the previous AI read, a manual level change left no trace, and a closed position was deleted
+along with its AI read and levels. Each trade now has a journal that survives the close. It records
+the opportunity card you bought from (a frozen copy, with how old it was), every AI read (price, key
+indicators, the call, the suggested stop and targets), every stop or target change with who made it
+(AI initial, AI apply, manual edit, break-even at T1), every add, sell and stop-out, and any entry
+correction. Open it from **📓 Journal** on a position card or on an exited trade in History. Runs of
+AI reads that changed nothing fold into one line.
+
+The journal records decisions, not prices, and uses no AI. It never blocks trading: if a journal write
+fails, the order still goes through and a warning says the journal wasn't updated.
+
+**Past trades are rebuilt from the action log** by a one-off script, each labelled as reconstructed,
+with any matching card from scan history marked as a match rather than as the card you clicked. This
+is the first of three steps toward the board reviewing its own trades.
+
+**The AI analysis now runs on Claude Opus 5.5** by default, instead of Opus 5. It costs less per
+token. `ANALYSIS_MODEL` still overrides it.
+
 ## 2.5.2
 
 **Each bracket lot now has its own stop.** A ThndrX bracket's two lots are separate orders, and
