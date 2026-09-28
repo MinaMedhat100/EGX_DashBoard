@@ -2,9 +2,26 @@
 // Mutates the portfolio data object in place (caller persists). Per prompt.md Step 6.
 import { v4 as uuid } from 'uuid';
 import { makeBracket, syncBracketSummary, settleLot, isFullyExited, openLots, raiseLotStop } from './bracketService.js';
+import { newTradeId, ensureTradeId, levelsSnapshot } from './journalService.js';
 
 const ILLIQUID = new Set(['EGX30ETF', 'BAL', 'CCB']);
 const round2 = (n) => Math.round(n * 100) / 100;
+const orNull = (v) => (Number(v) > 0 ? Number(v) : null);
+
+// What this order did, for the trade journal (the route writes it; this module does no journal I/O).
+// A position older than the journal adopts a trade_id here, on its first recorded event.
+function journalFor(pos, ticker, date) {
+  return { trade_id: ensureTradeId(pos, date), ticker, date, open: null, events: [], exit: null };
+}
+
+function entryPlan(order, mode, price, shares) {
+  return {
+    price, shares, mode,
+    split: mode === 'bracket' ? Number(order.split) || 50 : null,
+    stop: orNull(order.stop_loss), t1: orNull(order.t1_price), t2: orNull(order.t2_price),
+    levels_known: true,
+  };
+}
 
 function httpErr(status, message) {
   const e = new Error(message);
@@ -122,19 +139,24 @@ export function applyOrder(data, order) {
   if (type === 'BUY_NEW') {
     if (pos) throw httpErr(400, `${ticker} already held — use "Add to position"`);
     if (!shares || !price) throw httpErr(400, 'shares and price required');
+    const trade_id = newTradeId(ticker, date);
     if (order.mode === 'bracket') {
       if (shares < 2) throw httpErr(400, 'a bracket entry needs at least 2 shares');
-      data.positions.push(makeBracketPosition({ ...order, ticker, shares, price }, date));
+      const created = makeBracketPosition({ ...order, ticker, shares, price }, date);
+      created.trade_id = trade_id;
+      data.positions.push(created);
       data.action_log.unshift(logEntry({ type: 'BUY (bracket)', ticker, shares, price, new_avg_cost: price, total_shares: shares, notes, date }));
       toasts.push(`Opened ${ticker} bracket: ${shares}sh @ ${price} (split ${order.split || 50}/${100 - (order.split || 50)})`);
-      return { toasts };
+      return { toasts, journal: { trade_id, ticker, date, open: { entry: entryPlan(order, 'bracket', price, shares) }, events: [], exit: null } };
     }
-    data.positions.push(makeNewPosition({ ...order, ticker, shares, price }, date));
+    const created = makeNewPosition({ ...order, ticker, shares, price }, date);
+    created.trade_id = trade_id;
+    data.positions.push(created);
     data.action_log.unshift(
       logEntry({ type: 'BUY', ticker, shares, price, new_avg_cost: price, total_shares: shares, notes, date }),
     );
     toasts.push(`Opened ${ticker}: ${shares}sh @ ${price}`);
-    return { toasts };
+    return { toasts, journal: { trade_id, ticker, date, open: { entry: entryPlan(order, 'classic', price, shares) }, events: [], exit: null } };
   }
 
   if (!pos) throw httpErr(404, `position ${ticker} not found`);
@@ -147,17 +169,21 @@ export function applyOrder(data, order) {
     if (wanted !== 'A' && wanted !== 'B' && wanted !== 'ALL') throw httpErr(400, 'lot must be A, B, or ALL');
     const ids = wanted === 'ALL' ? openLots(pos.brackets).map((l) => l.id) : [wanted];
     if (!ids.length) throw httpErr(400, 'no open lots to settle');
+    const j = journalFor(pos, ticker, date);
     for (const id of ids) {
       const { realized, lot } = settleLot(pos, id, { kind, price, date }, pos.avg_cost);
       if (!lot) continue;
       data.realized_pnl = round2(data.realized_pnl + realized);
       const label = kind === 'tp' ? `SELL (Lot ${id} @ ${lot.target})` : `STOP-OUT (Lot ${id})`;
       data.action_log.unshift(logEntry({ type: label, ticker, shares: lot.shares, price, fifo_cost: kind === 'stop' ? pos.avg_cost : null, new_avg_cost: pos.avg_cost, total_shares: pos.shares, realized_pnl: realized, notes, date }));
+      j.events.push({ kind: 'order', type, lot: id, shares: lot.shares, price, date, realized_pnl: realized });
       toasts.push(`${ticker}: Lot ${id} ${kind === 'tp' ? 'banked @ ' + lot.target : 'stopped'} @ ${price} (${realized >= 0 ? '+' : ''}${realized} EGP)`);
     }
     if (isFullyExited(pos.brackets)) {
       const realizedTotal = pos.brackets.lots.reduce((s, l) => s + bracketRealizedSafe(l, pos.avg_cost), 0);
-      data.exited_positions.unshift({ ticker, exit_date: date, exit_price: price, shares: pos.brackets.lots.reduce((s, l) => s + l.shares, 0), avg_cost: pos.avg_cost, realized_pnl: round2(realizedTotal), exit_type: ids.length && kind === 'stop' ? 'STOP-OUT' : 'SELL', approximate: false });
+      const exitType = ids.length && kind === 'stop' ? 'STOP-OUT' : 'SELL';
+      data.exited_positions.unshift({ ticker, exit_date: date, exit_price: price, shares: pos.brackets.lots.reduce((s, l) => s + l.shares, 0), avg_cost: pos.avg_cost, realized_pnl: round2(realizedTotal), exit_type: exitType, approximate: false, trade_id: pos.trade_id });
+      j.exit = { date, price, type: exitType, realized_pnl: round2(realizedTotal), approximate: false };
       data.positions.splice(idx, 1);
       toasts.push(`${ticker} fully exited`);
     } else {
@@ -166,7 +192,9 @@ export function applyOrder(data, order) {
       const bankedA = ids.includes('A') && kind === 'tp' && a && a.tp_hit;
       if (bankedA && b && !b.tp_hit && !b.stopped && !b.stop_raised && pos.avg_cost > 0 && b.stop < pos.avg_cost) {
         if (order.raise_stop_be) {
+          const before = levelsSnapshot(pos);
           raiseLotStop(pos, 'B', pos.avg_cost);
+          j.events.push({ kind: 'levels', source: 'breakeven_at_t1', from: before, to: levelsSnapshot(pos) });
           toasts.push(`Lot B stop raised to break-even ${pos.avg_cost}`);
         } else {
           toasts.push(`Raise Lot B stop ${b.stop} → ${pos.avg_cost} (break-even) in ThndrX`);
@@ -175,7 +203,7 @@ export function applyOrder(data, order) {
       pos.position_label = `${pos.shares}sh runner — Lot ${ids.join('/')} ${kind === 'tp' ? 'banked' : 'stopped'} @ ${price}`;
       recompute(pos);
     }
-    return { toasts };
+    return { toasts, journal: j };
   }
 
   // ── BUY (add to existing) ───────────────────────────────────────────────────
@@ -194,7 +222,9 @@ export function applyOrder(data, order) {
       logEntry({ type: 'BUY (add)', ticker, shares, price, new_avg_cost: newAvg, total_shares: total, notes, date }),
     );
     toasts.push(`${ticker}: averaged to ${newAvg} over ${total}sh`);
-    return { toasts };
+    const j = journalFor(pos, ticker, date);
+    j.events.push({ kind: 'order', type: 'BUY_ADD', lot: null, shares, price, date, realized_pnl: null });
+    return { toasts, journal: j };
   }
 
   // ── exits: STOP-OUT / SELL ──────────────────────────────────────────────────
@@ -202,6 +232,8 @@ export function applyOrder(data, order) {
   if (!price) throw httpErr(400, 'price required');
 
   const qty = Math.min(shares, pos.shares);
+  const j = journalFor(pos, ticker, date);
+  let beEvent = null;
   const isStop = type === 'STOP_OUT';
   const cost = isStop ? calcFifoCost(pos, order.fifo_cost) : pos.avg_cost;
   const realized = round2((price - cost) * qty);
@@ -220,7 +252,9 @@ export function applyOrder(data, order) {
     }
     // Raise stop to break-even (avg cost) when requested (default-on checkbox in the modal).
     if (order.raise_stop_be && pos.shares > 0 && pos.avg_cost > 0) {
+      const before = levelsSnapshot(pos);
       pos.stop_loss = pos.avg_cost;
+      beEvent = { kind: 'levels', source: 'breakeven_at_t1', from: before, to: levelsSnapshot(pos) };
       pos.stop_raised = true;
       toasts.push(`Stop raised to break-even ${pos.avg_cost}`);
     } else if (order.target !== 'T2') {
@@ -242,6 +276,8 @@ export function applyOrder(data, order) {
       date,
     }),
   );
+  j.events.push({ kind: 'order', type, lot: null, shares: qty, price, date, realized_pnl: realized });
+  if (beEvent) j.events.push(beEvent);
 
   if (pos.shares <= 0) {
     data.exited_positions.unshift({
@@ -253,7 +289,9 @@ export function applyOrder(data, order) {
       realized_pnl: realized,
       exit_type: isStop ? 'STOP-OUT' : 'SELL',
       approximate: false,
+      trade_id: pos.trade_id,
     });
+    j.exit = { date, price, type: isStop ? 'STOP-OUT' : 'SELL', realized_pnl: realized, approximate: false };
     data.positions.splice(idx, 1);
     toasts.push(`${ticker} fully exited (${realized >= 0 ? '+' : ''}${realized} EGP realized)`);
   } else {
@@ -267,7 +305,7 @@ export function applyOrder(data, order) {
     toasts.push(`${ticker}: ${qty}sh ${isStop ? 'stopped' : 'sold'}@${price} (${realized >= 0 ? '+' : ''}${realized} EGP), ${pos.shares}sh remain`);
   }
 
-  return { toasts };
+  return { toasts, journal: j };
 }
 
 // correctEntry — fix a fat-finger entry: override shares + avg_cost directly (not FIFO),
@@ -302,5 +340,7 @@ export function correctEntry(data, { ticker, shares, avg_cost, date }) {
       notes: `entry corrected from ${from.shares}sh @ ${from.avg_cost}`, date,
     }),
   );
-  return { toasts: [`${t}: entry corrected to ${pos.shares}sh @ ${c}`] };
+  const j = journalFor(pos, t, date);
+  j.events.push({ kind: 'correction', from, to: { shares: pos.shares, avg_cost: c }, date });
+  return { toasts: [`${t}: entry corrected to ${pos.shares}sh @ ${c}`], journal: j };
 }
