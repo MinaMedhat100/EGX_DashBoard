@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STRATEGY_FILE = path.join(__dirname, '..', '..', 'STRATEGY.md');
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
-export const DEFAULT_MODEL = process.env.ANALYSIS_MODEL || 'claude-opus-5';
+export const DEFAULT_MODEL = process.env.ANALYSIS_MODEL || 'claude-opus-5-5';
 const TIMEOUT_MS = Number(process.env.ANALYSIS_TIMEOUT_MS || 240000);
 
 let _strategyCache = null;

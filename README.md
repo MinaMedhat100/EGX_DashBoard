@@ -77,7 +77,7 @@ npm run frontend    # Vite dev server     :5173
 
 See `.env.example`. Most useful knobs:
 
-- `ANALYSIS_MODEL` — `claude-opus-5` (default, best) or `sonnet` (faster/cheaper) for AI analysis.
+- `ANALYSIS_MODEL` — `claude-opus-5-5` (default, best) or `sonnet` (faster/cheaper) for AI analysis.
 - `MCP_BRIDGE_URL` — where the backend reaches the bridge.
 
 ## How it works
