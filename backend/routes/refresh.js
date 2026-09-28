@@ -8,6 +8,8 @@ import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
 import { applyAiLevels, recomputeDerived, proposalDiffers } from '../services/levelService.js';
 import { gatherNews, latestRegime } from '../services/aiContext.js';
 import { portfolioStats } from '../services/portfolioStats.js';
+import { ensureTradeId, levelsSnapshot, recordAiRead, todayIso } from '../services/journalService.js';
+import { recordJournal } from '../services/journalRecorder.js';
 
 const router = Router();
 
@@ -80,16 +82,28 @@ router.post('/analyze', async (req, res, next) => {
     // New (pending) positions adopt the AI's levels; existing ones surface a proposal
     // to Apply — but only when a level actually moved (no chip on unchanged levels).
     const proposals = {};
+    const journaled = []; // { p, before, applied } for each position the AI read
     for (const p of data.positions) {
       if (!analyses[p.ticker]) continue;
+      const before = levelsSnapshot(p);
       p.ai = { ...analyses[p.ticker], model, analyzed_at };
       const result = applyAiLevels(p);
       if (result.applied) recomputeDerived(p);
       else if (result.proposal && proposalDiffers(p, result.proposal)) proposals[p.ticker] = result.proposal;
+      ensureTradeId(p, todayIso());
+      journaled.push({ p, before, applied: !!result.applied });
     }
     if (book) data.book_ai = { ...book, analyzed_at, model };
     await save(data);
-    res.json({ ok: true, model, analyzed_at, positions: data.positions, book_ai: data.book_ai ?? null, proposals });
+    const journal_warning = journaled.length
+      ? await recordJournal((j) => {
+        for (const { p, before, applied } of journaled) recordAiRead(j, p, 'refresh_all', before, applied);
+      })
+      : null;
+    res.json({
+      ok: true, model, analyzed_at, positions: data.positions, book_ai: data.book_ai ?? null, proposals,
+      ...(journal_warning ? { journal_warning } : {}),
+    });
   } catch (e) { next(e); }
 });
 
