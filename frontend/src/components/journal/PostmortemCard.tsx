@@ -26,7 +26,7 @@ export function PostmortemCard({ pm, note, canRun, costHint, model, onRun, runni
         {pm?.status === 'failed' && <span className="text-status-red">failed: {pm.error}</span>}
         {pm?.status === 'no_bars' && <span className="text-txt-secondary">no Yahoo price history for this ticker</span>}
         {(running || pm?.status === 'running') && <span className="text-txt-secondary">running…</span>}
-        {canRun && !running && pm?.status !== 'running' && (
+        {canRun && !running && pm?.status !== 'running' && pm?.status !== 'waiting' && (
           <button onClick={ask} className="ml-auto text-accent-purple-lt hover:text-txt-primary">{runLabel} <span className="text-txt-secondary">{cost}</span></button>
         )}
       </div>
