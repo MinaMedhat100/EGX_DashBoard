@@ -1,5 +1,7 @@
-import { Fragment, useState } from 'react';
-import type { PortfolioData } from '../types/portfolio';
+import { Fragment, useCallback, useEffect, useState } from 'react';
+import { api } from '../api/client';
+import type { PortfolioData, PostmortemSummaryItem } from '../types/portfolio';
+import { PostmortemChip } from '../components/journal/PostmortemChip';
 import { GlowCard } from '../components/common/GlowCard';
 import { JournalTimeline } from '../components/journal/JournalTimeline';
 import { fmtNum, fmtEgp } from '../lib/format';
@@ -18,6 +20,15 @@ function pnlClass(v: number | null) {
 
 export function HistoryPage({ data }: { data: PortfolioData }) {
   const [openTrade, setOpenTrade] = useState<string | null>(null);
+  const [summary, setSummary] = useState<Record<string, PostmortemSummaryItem>>({});
+  const [costHint, setCostHint] = useState<number | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+  const loadSummary = useCallback(() => {
+    api.getJournalSummary()
+      .then((r) => { setSummary(r.trades); setCostHint(r.cost_hint_usd); setModel(r.model); })
+      .catch(() => { /* chips are optional */ });
+  }, []);
+  useEffect(() => { loadSummary(); }, [loadSummary, data.exited_positions.length]);
   const exitedTotal = data.exited_positions.reduce((s, e) => s + (e.realized_pnl ?? 0), 0);
 
   return (
@@ -106,6 +117,11 @@ export function HistoryPage({ data }: { data: PortfolioData }) {
                   <td className={`text-right font-mono ${pnlClass(e.realized_pnl)}`}>{fmtEgp(e.realized_pnl)}</td>
                   <td className="pl-3 text-right">
                     {e.trade_id && (
+                      <span className="mr-2 inline-block">
+                        <PostmortemChip item={summary[e.trade_id]} onAnalyse={() => setOpenTrade(e.trade_id ?? null)} />
+                      </span>
+                    )}
+                    {e.trade_id && (
                       <button
                         onClick={() => setOpenTrade((t) => (t === e.trade_id ? null : e.trade_id ?? null))}
                         className="text-[11px] text-accent-purple-lt hover:text-txt-primary whitespace-nowrap"
@@ -117,7 +133,7 @@ export function HistoryPage({ data }: { data: PortfolioData }) {
                 </tr>
                 {openTrade && openTrade === e.trade_id && (
                   <tr className="border-b border-border">
-                    <td colSpan={8} className="pb-2"><JournalTimeline tradeId={openTrade} /></td>
+                    <td colSpan={8} className="pb-2"><JournalTimeline tradeId={openTrade} costHint={costHint} model={model} onChanged={loadSummary} /></td>
                   </tr>
                 )}
               </Fragment>

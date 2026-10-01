@@ -16,6 +16,9 @@ import type {
   IndexSnapshot,
   GoldState,
   GoldPosition,
+  JournalNote,
+  Postmortem,
+  PostmortemSummaryItem,
 } from '../types/portfolio';
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
@@ -128,4 +131,10 @@ export const api = {
 
   getJournal: (tradeId: string) =>
     req<{ ok: boolean; trade: TradeJournal }>(`/journal/${encodeURIComponent(tradeId)}`),
+  getJournalSummary: () =>
+    req<{ ok: boolean; trades: Record<string, PostmortemSummaryItem>; cost_hint_usd: number; model: string }>('/journal/summary'),
+  saveJournalNote: (tradeId: string, text: string) =>
+    req<{ ok: boolean; note: JournalNote | null }>(`/journal/${encodeURIComponent(tradeId)}/note`, { method: 'PUT', body: JSON.stringify({ text }) }),
+  runPostmortem: (tradeId: string) =>
+    req<{ ok: boolean; postmortem: Postmortem }>(`/journal/${encodeURIComponent(tradeId)}/postmortem`, { method: 'POST' }),
 };

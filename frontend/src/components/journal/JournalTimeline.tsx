@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import type { TradeJournal, JournalEvent } from '../../types/portfolio';
+import type { TradeJournal, JournalEvent, JournalNote } from '../../types/portfolio';
+import { NoteField } from './NoteField';
+import { PostmortemCard } from './PostmortemCard';
 import { fmtNum, fmtEgp } from '../../lib/format';
 import {
   collapseReads, shortDate, levelsText, levelsSourceLabel, suggestedText, orderText, ORIGIN_LABEL, cardAgeText,
@@ -43,10 +45,22 @@ function EventLine({ e, repeats, exitDate }: { e: JournalEvent; repeats: number;
   return <div className="text-status-yellow">{date} · ⚠ {e.note}</div>;
 }
 
-export function JournalTimeline({ tradeId }: { tradeId: string }) {
+export function JournalTimeline({ tradeId, costHint = null, model = null, onChanged }: {
+  tradeId: string; costHint?: number | null; model?: string | null; onChanged?: () => void;
+}) {
   const [trade, setTrade] = useState<TradeJournal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showThesis, setShowThesis] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+
+  const reload = () => api.getJournal(tradeId).then((r) => setTrade(r.trade)).catch((e) => setError((e as Error).message));
+  const run = async () => {
+    setRunning(true); setRunError(null);
+    try { await api.runPostmortem(tradeId); }
+    catch (e) { setRunError((e as Error).message); }
+    finally { setRunning(false); await reload(); onChanged?.(); }
+  };
 
   useEffect(() => {
     let live = true;
@@ -73,6 +87,9 @@ export function JournalTimeline({ tradeId }: { tradeId: string }) {
         )}
         <span className="text-txt-secondary">{trade.events.length} events</span>
       </div>
+      {trade.status === 'closed' && (
+        <NoteField tradeId={trade.trade_id} note={trade.note} onSaved={(n: JournalNote | null) => setTrade({ ...trade, note: n ?? undefined })} />
+      )}
       <div>
         Plan: {en?.price != null ? `entry ${fmtNum(en.price)}` : 'entry ?'}
         {en?.levels_known
@@ -100,6 +117,10 @@ export function JournalTimeline({ tradeId }: { tradeId: string }) {
           {' '}· Closed {trade.exit.type} @ {fmtNum(trade.exit.price)}
           {trade.exit.realized_pnl != null ? ` · ${fmtEgp(trade.exit.realized_pnl)}` : ''}
         </div>
+      )}
+      {trade.status === 'closed' && (
+        <PostmortemCard pm={trade.postmortem} note={trade.note} canRun costHint={costHint} model={model}
+          onRun={run} running={running} error={runError} />
       )}
     </div>
   );

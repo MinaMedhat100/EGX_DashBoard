@@ -445,4 +445,30 @@ export interface TradeJournal {
   card: JournalCard | null;
   events: JournalEvent[];
   exit: { date: string | null; price: number | null; type: string; realized_pnl: number | null; approximate: boolean } | null;
+  note?: JournalNote;
+  postmortem?: Postmortem;
+}
+
+export interface JournalNote { text: string; at: string }
+export interface PostmortemResult {
+  verdict: 'process_error' | 'normal_variance' | 'user_deviation' | 'missing_data' | 'good_process';
+  stage: 'entry' | 'management' | 'exit' | 'none';
+  summary: string;
+  evidence: string[];
+  counterfactual: string;
+  lesson: { category: string; text: string; applies_to_winners: boolean; category_raw?: string | null };
+  confidence: number;
+  verdict_raw?: string;
+}
+export interface Postmortem {
+  status: 'waiting' | 'running' | 'done' | 'failed' | 'no_bars';
+  due_estimate?: string | null;
+  started_at?: string; ran_at?: string; model?: string; cost_usd?: number | null;
+  attempts?: number; runs?: number; error?: string | null;
+  evidence?: Record<string, unknown>;
+  result?: PostmortemResult;
+}
+export interface PostmortemSummaryItem {
+  status: Postmortem['status'] | null; verdict: PostmortemResult['verdict'] | null;
+  stage: string | null; category: string | null; due_estimate: string | null; auto: boolean;
 }
