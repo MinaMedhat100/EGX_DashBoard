@@ -5,10 +5,13 @@ import { fmtNum, fmtEgp } from '../../lib/format';
 import {
   collapseReads, shortDate, levelsText, levelsSourceLabel, suggestedText, orderText, ORIGIN_LABEL, cardAgeText,
 } from '../../lib/journal';
+import { orderTimeline, loggedLateDays, readAfterClose } from '../../lib/journalOrder';
 
-function EventLine({ e, repeats }: { e: JournalEvent; repeats: number }) {
+function EventLine({ e, repeats, exitDate }: { e: JournalEvent; repeats: number; exitDate: string | null }) {
   const [open, setOpen] = useState(false);
   const date = <span className="text-txt-secondary">{shortDate(e)}</span>;
+  const late = loggedLateDays(e);
+  const lateTag = late != null && <span className="text-status-yellow"> · logged {late} days later</span>;
   if (e.kind === 'ai_read') {
     return (
       <div>
@@ -16,6 +19,7 @@ function EventLine({ e, repeats }: { e: JournalEvent; repeats: number }) {
           {date} · {fmtNum(e.price)} · <b>{e.recommendation ?? '—'}</b>
           {e.conviction != null ? ` ${e.conviction}/5` : ''} · {suggestedText(e)}
           {repeats > 0 && <span className="text-txt-secondary"> · ×{repeats + 1} reads, no change</span>}
+          {readAfterClose(e, exitDate) && <span className="text-status-yellow"> · after the trade closed</span>}
         </button>
         {open && (
           <div className="text-txt-secondary whitespace-pre-wrap mt-0.5 ml-4">
@@ -28,11 +32,11 @@ function EventLine({ e, repeats }: { e: JournalEvent; repeats: number }) {
   if (e.kind === 'levels') {
     return <div>{date} · {levelsText(e.from, e.to)} · <span className="text-txt-secondary">{levelsSourceLabel(e.source)}</span></div>;
   }
-  if (e.kind === 'order') return <div>{date} · {orderText(e)}</div>;
+  if (e.kind === 'order') return <div>{date} · {orderText(e)}{lateTag}</div>;
   if (e.kind === 'correction') {
     return (
       <div>
-        {date} · Entry corrected {e.from ? `${e.from.shares}sh @ ${e.from.avg_cost}` : '?'} → {e.to.shares ?? '?'}sh @ {e.to.avg_cost ?? '?'}
+        {date} · Entry corrected {e.from ? `${e.from.shares}sh @ ${e.from.avg_cost}` : '?'} → {e.to.shares ?? '?'}sh @ {e.to.avg_cost ?? '?'}{lateTag}
       </div>
     );
   }
@@ -56,7 +60,7 @@ export function JournalTimeline({ tradeId }: { tradeId: string }) {
   if (!trade) return <div className="mt-2 text-xs text-txt-secondary">Loading journal…</div>;
 
   const en = trade.entry;
-  const items = collapseReads(trade.events);
+  const items = collapseReads(orderTimeline(trade.events));
   const hasReads = trade.events.some((e) => e.kind === 'ai_read');
   const age = cardAgeText(trade);
 
@@ -89,7 +93,7 @@ export function JournalTimeline({ tradeId }: { tradeId: string }) {
         </div>
       )}
       {!hasReads && <div className="text-txt-secondary">No AI reads were recorded for this trade.</div>}
-      {items.map((it) => <EventLine key={it.key} e={it.event} repeats={it.repeats.length} />)}
+      {items.map((it) => <EventLine key={it.key} e={it.event} repeats={it.repeats.length} exitDate={trade.exit?.date ?? null} />)}
       {trade.exit && (
         <div className={trade.exit.realized_pnl != null && trade.exit.realized_pnl < 0 ? 'text-status-red' : 'text-status-green'}>
           {trade.exit.date ? (/^\d{4}-\d{2}-\d{2}$/.test(trade.exit.date) ? trade.exit.date.slice(5) : trade.exit.date) : '—'}

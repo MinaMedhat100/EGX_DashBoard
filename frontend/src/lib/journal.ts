@@ -30,7 +30,7 @@ export function collapseReads(events: JournalEvent[]): TimelineItem[] {
 
 /** MM-DD for ISO dates; legacy dates ("Jun 10, 2026") are shown as they are. */
 export function shortDate(e: JournalEvent): string {
-  const d = ('date' in e && e.date) || e.at;
+  const d = (e.kind === 'ai_read' && e.analyzed_at) || ('date' in e && e.date) || e.at;
   return /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(5, 10) : d;
 }
 

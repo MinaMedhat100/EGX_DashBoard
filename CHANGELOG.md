@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.6.1
+
+**The journal timeline now shows events in the order they happened.** Events were listed in the
+order they were saved, so a stop-out logged days after it filled appeared after AI reads made while
+the position was, in reality, already closed. The timeline now sorts by when each event happened:
+the analysis time for AI reads, the trade date for orders and corrections. Reads saved by the
+backfill now show the date they ran, not the backfill date. An order logged two or more days after
+its trade date is tagged **logged N days later**, and an AI read made after the trade closed is
+tagged **after the trade closed**. The stored journal is unchanged; this is display only.
+
 ## 2.6.0
 
 **The board now keeps a journal of every trade.** Until now it forgot its own decisions: each Refresh

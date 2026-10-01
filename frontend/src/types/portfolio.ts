@@ -419,7 +419,7 @@ export interface JournalLevels {
 
 export type JournalEvent =
   | {
-      at: string; kind: 'ai_read'; source: string; price: number | null;
+      at: string; kind: 'ai_read'; source: string; price: number | null; analyzed_at?: string | null;
       indicators: Record<string, number | null>;
       recommendation: string | null; conviction: number | null; thesis: string; key_risk: string; action_line: string;
       suggested: { stop: number | null; stop_a: number | null; stop_b: number | null; t1: number | null; t2: number | null };
