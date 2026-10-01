@@ -1,7 +1,8 @@
 // analystService.js — the AI layer. Spawns headless `claude -p` (no tools, pure reasoning),
 // hands it already-fetched data + STRATEGY.md, parses strict JSON back.
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,7 +14,7 @@ export const DEFAULT_MODEL = process.env.ANALYSIS_MODEL || 'claude-opus-5-5';
 const TIMEOUT_MS = Number(process.env.ANALYSIS_TIMEOUT_MS || 240000);
 
 let _strategyCache = null;
-async function strategyText() {
+export async function strategyText() {
   if (_strategyCache == null) {
     try { _strategyCache = await readFile(STRATEGY_FILE, 'utf-8'); }
     catch { _strategyCache = ''; }
@@ -21,37 +22,54 @@ async function strategyText() {
   return _strategyCache;
 }
 
-// Run headless claude, prompt via stdin, return the model's text output.
-function runClaude(prompt, model = DEFAULT_MODEL) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      CLAUDE_BIN,
-      ['-p', '--output-format', 'json', '--model', model, '--permission-mode', 'bypassPermissions'],
-      { windowsHide: true },
-    );
-    let out = '', err = '';
-    const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('claude analysis timed out')); }, TIMEOUT_MS);
-    child.stdout.on('data', (d) => { out += d; });
-    child.stderr.on('data', (d) => { err += d; });
-    child.on('error', (e) => { clearTimeout(timer); reject(new Error(`spawn claude failed: ${e.message}`)); });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code !== 0) return reject(new Error(`claude exit ${code}: ${(err || out).slice(0, 300)}`));
-      try {
-        const env = JSON.parse(out);
-        if (env.is_error) return reject(new Error(`claude reported error: ${env.result}`));
-        resolve(env.result ?? '');
-      } catch {
-        reject(new Error(`bad claude envelope: ${out.slice(0, 200)}`));
-      }
+export const POSTMORTEM_SYSTEM =
+  'You review one closed stock trade for its owner. You have no tools. Reply with a single JSON object only.';
+
+// Argument list for headless claude. The isolated form (post-mortem) runs with every tool off, no MCP
+// servers, no settings/plugins/hooks, no saved session and no bypassPermissions.
+export function claudeArgs(model, { isolated = false, systemPrompt = null } = {}) {
+  const base = ['-p', '--output-format', 'json', '--model', model];
+  if (!isolated) return [...base, '--permission-mode', 'bypassPermissions'];
+  return [
+    ...base, '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence',
+    ...(systemPrompt ? ['--system-prompt', systemPrompt] : []),
+  ];
+}
+
+// Run headless claude, prompt via stdin, return the model's text output (or {text, cost_usd} with
+// envelope). Isolated runs start in a fresh temp directory so no repo CLAUDE.md is picked up.
+export async function runClaude(prompt, model = DEFAULT_MODEL, opts = {}) {
+  const cwd = opts.isolated ? await mkdtemp(path.join(os.tmpdir(), 'egx-pm-')) : undefined;
+  try {
+    return await new Promise((resolve, reject) => {
+      const child = spawn(CLAUDE_BIN, claudeArgs(model, opts), { windowsHide: true, ...(cwd ? { cwd } : {}) });
+      let out = '', err = '';
+      const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('claude analysis timed out')); }, TIMEOUT_MS);
+      child.stdout.on('data', (d) => { out += d; });
+      child.stderr.on('data', (d) => { err += d; });
+      child.on('error', (e) => { clearTimeout(timer); reject(new Error(`spawn claude failed: ${e.message}`)); });
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        if (code !== 0) return reject(new Error(`claude exit ${code}: ${(err || out).slice(0, 300)}`));
+        try {
+          const env = JSON.parse(out);
+          if (env.is_error) return reject(new Error(`claude reported error: ${env.result}`));
+          const text = env.result ?? '';
+          resolve(opts.envelope ? { text, cost_usd: env.total_cost_usd ?? null } : text);
+        } catch {
+          reject(new Error(`bad claude envelope: ${out.slice(0, 200)}`));
+        }
+      });
+      child.stdin.write(prompt);
+      child.stdin.end();
     });
-    child.stdin.write(prompt);
-    child.stdin.end();
-  });
+  } finally {
+    if (cwd) await rm(cwd, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 // Pull a JSON object/array out of model text (handles ``` fences and stray prose).
-function extractJson(text) {
+export function extractJson(text) {
   if (!text) throw new Error('empty model output');
   let t = text.trim();
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
