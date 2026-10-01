@@ -201,3 +201,55 @@ export function recordAiRead(journal, position, source, before, applied, at = ne
     appendEvent(journal, ref, { kind: 'levels', source: 'ai_initial', from: before, to: after }, at);
   }
 }
+
+// ── post-mortem state (v2.7.0) ───────────────────────────────────────────────
+export const JOURNAL_LIVE_FROM = '2026-09-28';
+export const NOTE_MAX = 280;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// The user's one-line reason. Empty text deletes it. undefined = no such trade.
+export function setNote(journal, tradeId, text, at = new Date().toISOString()) {
+  const t = findTrade(journal, tradeId);
+  if (!t) return undefined;
+  const clean = String(text ?? '').trim().slice(0, NOTE_MAX);
+  if (!clean) { delete t.note; return null; }
+  t.note = { text: clean, at };
+  return t.note;
+}
+
+export function setPostmortem(journal, tradeId, patch) {
+  const t = findTrade(journal, tradeId);
+  if (!t) return undefined;
+  t.postmortem = { ...(t.postmortem ?? {}), ...patch };
+  return t.postmortem;
+}
+
+// Auto-run only for trades whose closing order was saved after the journal went live — the rebuilt
+// history is opt-in ("Analyse this trade").
+export function isAutoEligible(trade) {
+  if (trade?.status !== 'closed' || !ISO_DATE.test(trade.exit?.date ?? '')) return false;
+  const lastOrder = (trade.events ?? []).filter((e) => e.kind === 'order').at(-1);
+  return !!lastOrder && lastOrder.at.slice(0, 10) >= JOURNAL_LIVE_FROM;
+}
+
+export function dueEstimate(exitDate) {
+  if (!ISO_DATE.test(exitDate ?? '')) return null;
+  return new Date(Date.parse(exitDate) + 14 * 86400000).toISOString().slice(0, 10);
+}
+
+export function postmortemSummary(journal) {
+  const out = {};
+  for (const t of journal.trades) {
+    if (t.status !== 'closed') continue;
+    const pm = t.postmortem ?? {};
+    out[t.trade_id] = {
+      status: pm.status ?? null,
+      verdict: pm.result?.verdict ?? null,
+      stage: pm.result?.stage ?? null,
+      category: pm.result?.lesson?.category ?? null,
+      due_estimate: pm.due_estimate ?? (!pm.status && isAutoEligible(t) ? dueEstimate(t.exit.date) : null),
+      auto: isAutoEligible(t),
+    };
+  }
+  return out;
+}
