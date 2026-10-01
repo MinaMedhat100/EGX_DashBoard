@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.7.0
+
+**The board now reviews every closed trade.** About two weeks after a trade fully closes, once Yahoo
+has ten sessions of prices after the exit, the board writes a post-mortem on it — for wins and losses
+alike. Code first gathers the facts from daily prices and the journal: how far the stop sat from the
+entry in ATRs, the worst drop and best gain while held, whether the price came back to the entry after
+a stop-out and how fast, how the market moved over the same days, orders logged late, and AI reads made
+after the close. A possible share split or bonus issue is flagged instead of judged. One AI call then
+judges the decisions — not the P&L — against STRATEGY.md and those facts: a verdict (good process,
+normal variance, went off-plan, process error, missing data), the stage it happened at, the evidence,
+what the rules would have done differently, and one lesson in a fixed category.
+
+Trades closed from now on are reviewed automatically (at most three per check, every six hours while
+the backend runs). The rebuilt older trades are reviewed only when you click **Analyse this trade**.
+You can add a one-line note to any closed trade; the review reads it as your reason. The call runs
+with every tool switched off, outside the project folder, on one trade at a time. Results appear in
+History: a coloured chip on the row and the full review in the 📓 Journal panel. Nothing is changed
+automatically. `POSTMORTEM_AUTO=off` turns the automatic runs off. A review costs about $0.15 — the
+call skips Claude Code's tools, MCP servers and project files, which cut a bare call from ~$0.45 to $0.08.
+
 ## 2.6.1
 
 **The journal timeline now shows events in the order they happened.** Events were listed in the
