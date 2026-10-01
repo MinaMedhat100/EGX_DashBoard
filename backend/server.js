@@ -15,6 +15,7 @@ import goldRoutes from './routes/gold.js';
 import journalRoutes from './routes/journal.js';
 import { bridge } from './services/bridgeClient.js';
 import { DEFAULT_MODEL } from './services/analystService.js';
+import { postmortems, startPostmortemScheduler } from './services/postmortemRunner.js';
 
 const app = express();
 app.use(cors());
@@ -55,4 +56,5 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`EGX backend listening on http://localhost:${PORT}`);
   console.log(`  bridge: ${bridge.base}  |  analysis model: ${DEFAULT_MODEL}`);
+  if (process.env.POSTMORTEM_AUTO !== 'off') startPostmortemScheduler(postmortems);
 });
