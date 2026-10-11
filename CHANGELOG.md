@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.2
+
+**A failed AI call now says why.** When the Claude CLI exits with an error it still replies with a
+JSON envelope whose `result` holds the reason — a usage limit, an expired login. The board kept
+only the first 300 raw characters of that reply, which are token counters, so SIPC's automatic
+post-mortem failed twice on 2026-10-11 with no visible cause. Post-mortems, Refresh and the
+Opportunities scan now show the reason itself.
+
 ## 2.7.1
 
 **When TradingView rate-limits the board, it now says so in seconds instead of timing out.**

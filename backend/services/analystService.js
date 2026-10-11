@@ -36,6 +36,17 @@ export function claudeArgs(model, { isolated = false, systemPrompt = null } = {}
   ];
 }
 
+// Why a claude run failed. On a non-zero exit the CLI still prints its JSON envelope; the reason is
+// in `result` (e.g. "Claude AI usage limit reached"), which the first 300 raw characters cut off.
+export function claudeFailureMessage(code, out, err) {
+  try {
+    const env = JSON.parse(out);
+    const why = env.result || (Array.isArray(env.errors) && env.errors.length && env.errors.join('; ')) || env.subtype;
+    if (why) return `claude exit ${code}: ${String(why).slice(0, 300)}`;
+  } catch { /* not JSON: fall back to the raw output */ }
+  return `claude exit ${code}: ${(err || out).slice(0, 300)}`;
+}
+
 // Run headless claude, prompt via stdin, return the model's text output (or {text, cost_usd} with
 // envelope). Isolated runs start in a fresh temp directory so no repo CLAUDE.md is picked up.
 export async function runClaude(prompt, model = DEFAULT_MODEL, opts = {}) {
@@ -50,7 +61,7 @@ export async function runClaude(prompt, model = DEFAULT_MODEL, opts = {}) {
       child.on('error', (e) => { clearTimeout(timer); reject(new Error(`spawn claude failed: ${e.message}`)); });
       child.on('close', (code) => {
         clearTimeout(timer);
-        if (code !== 0) return reject(new Error(`claude exit ${code}: ${(err || out).slice(0, 300)}`));
+        if (code !== 0) return reject(new Error(claudeFailureMessage(code, out, err)));
         try {
           const env = JSON.parse(out);
           if (env.is_error) return reject(new Error(`claude reported error: ${env.result}`));
