@@ -137,10 +137,15 @@ export interface OrderPrefill {
   card?: JournalCard;
 }
 
+/** The bridge couldn't refresh prices because TradingView is rate-limiting us (v2.7.1). */
+export interface StaleNotice { reason: string; retry_after_s: number | null }
+
 export interface RefreshAiResult {
   ok: boolean;
   position: Position;
   applied: boolean;
+  skipped_ai?: boolean;
+  stale?: StaleNotice;
   proposal?: LevelProposal;
   error?: string;
   live_error?: string | null;

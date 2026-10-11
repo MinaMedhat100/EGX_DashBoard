@@ -19,6 +19,7 @@ import type {
   JournalNote,
   Postmortem,
   PostmortemSummaryItem,
+  StaleNotice,
 } from '../types/portfolio';
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
@@ -45,7 +46,7 @@ export const api = {
   getPortfolio: () => req<PortfolioData>('/portfolio'),
 
   refresh: () =>
-    req<{ ok: boolean; last_refresh: string; positions: Position[] }>('/refresh', {
+    req<{ ok: boolean; last_refresh: string; positions: Position[]; stale?: StaleNotice }>('/refresh', {
       method: 'POST',
       body: '{}',
     }),

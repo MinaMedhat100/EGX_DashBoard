@@ -50,7 +50,9 @@ function Shell() {
 
   const doRefresh = async () => {
     const r = await refresh.run();
-    if (r.ok && r.aiOk) {
+    if ('stale' in r && r.stale) {
+      toast(`TradingView is rate-limiting us — showing the last prices, AI skipped (retry in ${r.stale.retry_after_s ?? 60}s)`, 'error');
+    } else if (r.ok && r.aiOk) {
       noteJournal(r.journal_warning);
       setData((d) => (d ? { ...d, book_ai: r.book_ai ?? null } : d));
       setProposals(r.proposals ?? {});
@@ -85,7 +87,8 @@ function Shell() {
       const r = await api.refreshAi(ticker);
       noteJournal(r.journal_warning);
       applyPositions([r.position]);
-      if (r.applied) toast(`AI set levels for ${ticker}`, 'success');
+      if (r.skipped_ai) toast(`${ticker}: ${r.live_error}`, 'error');
+      else if (r.applied) toast(`AI set levels for ${ticker}`, 'success');
       else if (r.proposal) {
         setProposals((m) => ({ ...m, [ticker]: r.proposal as LevelProposal }));
         toast(`${ticker}: AI proposed updated levels — review on the card`, 'success');
