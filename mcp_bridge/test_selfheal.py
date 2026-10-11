@@ -34,5 +34,8 @@ check("unrelated error", _is_transient({"error": "symbol NOTATICKER not found"})
 check("timeout error is not a throttle signature",
       _is_transient({"error": "coin_analysis timed out after 45s"}), False)
 check("non-dict input", _is_transient("nope"), False)
+check("0.8.1 structured upstream error (TradingView 429) is NOT a stuck connection",
+      _is_transient({"error": {"code": "UPSTREAM_ERROR", "retryable": True, "retry_after_s": 60,
+                               "message": "Analysis failed: Expecting value: line 1 column 1 (char 0)"}}), False)
 
 print("\nALL PASS")

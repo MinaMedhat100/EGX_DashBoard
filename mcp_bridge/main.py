@@ -11,6 +11,7 @@ Run:  uvicorn mcp_bridge.main:app --port 8001
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -21,7 +22,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .tradingview_client import (
+    RATE_LIMITED,
+    breaker_state,
     clean_symbol,
+    cooldown_left,
+    is_rate_limited,
     extract_indicators,
     extract_mtf,
     start_client,
@@ -55,10 +60,24 @@ async def _fetch_mtf(tv, ticker, attempts: int = 3, exchange: str = "EGX"):
     """Multi-timeframe is the heaviest call and occasionally fails transiently mid-scan;
     retry a couple of times before giving up (the data almost always exists)."""
     for _ in range(attempts):
-        mtf = extract_mtf(await tv.multi_timeframe(ticker, exchange=exchange))
+        raw = await tv.multi_timeframe(ticker, exchange=exchange)
+        if is_rate_limited(raw):
+            return None  # TradingView is refusing us: retrying only extends the block
+        mtf = extract_mtf(raw)
         if mtf:
             return mtf
     return None
+
+
+def _rate_limit_info() -> dict | None:
+    """{"retry_after_s": N} while TradingView is rate-limiting us, else None."""
+    left = cooldown_left()
+    return {"retry_after_s": math.ceil(left)} if left > 0 else None
+
+
+def _rate_limited_detail(what: str) -> str:
+    info = _rate_limit_info() or {"retry_after_s": 60}
+    return f"{what}: {RATE_LIMITED} — TradingView is rate-limiting us, retry in {info['retry_after_s']}s"
 
 
 # ── request models ───────────────────────────────────────────────────────────
@@ -240,7 +259,7 @@ async def mcp_check():
     try:
         async with tv_session() as tv:
             tools = await tv.list_tools()
-        return {"connected": True, "tool_count": len(tools), "tools": tools}
+        return {"connected": True, "tool_count": len(tools), "tools": tools, "breaker": breaker_state()}
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"MCP connect failed: {exc!r}")
 
@@ -253,24 +272,48 @@ async def refresh_prices(body: RefreshBody):
     try:
         async with tv_session() as tv:
             for ticker in body.tickers:
+                # TradingView is refusing us: answer the rest at once instead of queueing retries
+                if cooldown_left() > 0:
+                    out[ticker] = {"error": RATE_LIMITED}
+                    continue
                 analysis = await tv.coin_analysis(ticker)
+                if is_rate_limited(analysis):
+                    out[ticker] = {"error": RATE_LIMITED}
+                    continue
                 ind = extract_indicators(analysis)
                 # multi-timeframe (W/D/4H/1H/15m) for each liquid position
-                ind["mtf"] = await _fetch_mtf(tv, ticker)
+                ind["mtf"] = await _fetch_mtf(tv, ticker) if "error" not in ind else None
                 out[ticker] = ind
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"refresh failed: {exc!r}")
 
-    # cache for resilience / "last refreshed" display
+    _merge_cache(out)
+    limited = _rate_limit_info()
+    if limited:
+        out["_rate_limited"] = limited  # not a ticker: the backend reads it as a refresh notice
+    return out
+
+
+def _merge_cache(out: dict) -> None:
+    """Keep the last GOOD data per ticker: errors never overwrite the cache, and a refresh that
+    refreshed nothing leaves it (and its timestamp) untouched."""
+    fresh = {t: v for t, v in out.items() if isinstance(v, dict) and "error" not in v and v.get("price") is not None}
+    if not fresh:
+        return
+    try:
+        old = json.loads(CACHE_FILE.read_text(encoding="utf-8")).get("data", {})
+    except (OSError, ValueError):
+        old = {}
+    data = {t: v for t, v in old.items() if isinstance(v, dict) and "error" not in v}
+    data.update(fresh)
     try:
         CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
         CACHE_FILE.write_text(
-            json.dumps({"timestamp": _now_iso(), "data": out}, indent=2, ensure_ascii=False),
+            json.dumps({"timestamp": _now_iso(), "data": data}, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
     except OSError:
         pass
-    return out
 
 
 async def _analyze_candidate(tv, sym, item, body) -> dict:
@@ -314,7 +357,10 @@ async def scan_opportunities(body: ScanBody):
             # Don't raise inside the MCP task group (it wraps into ExceptionGroup). The
             # screener returns empty/error pre-market — degrade to a clean empty result.
             raw = (scr.get("qualified_trades") or []) + (scr.get("watchlist") or [])
-            if scr.get("error") or not raw:
+            if is_rate_limited(scr):
+                note = _rate_limited_detail("screener")
+                raw = []
+            elif scr.get("error") or not raw:
                 note = scr.get("error") or "screener returned no data (market may be pre-open or closed)"
                 raw = []
             seen: set[str] = set()
@@ -329,6 +375,9 @@ async def scan_opportunities(body: ScanBody):
             candidates = candidates[: body.detail_limit]
 
             for item in candidates:
+                if cooldown_left() > 0:
+                    note = _rate_limited_detail("scan stopped early")
+                    break
                 sym = clean_symbol(item["symbol"])
                 cand = await _analyze_candidate(tv, sym, item, body)
                 if "error" in cand:
@@ -338,7 +387,7 @@ async def scan_opportunities(body: ScanBody):
             # multi-timeframe (W/D/4H/1H/15m) for the candidates that passed the filter,
             # so the AI ranks with weekly confirmation. Bounded to the passed set.
             for r in results:
-                if r["passes_filter"]:
+                if r["passes_filter"] and cooldown_left() <= 0:
                     r["indicators"]["mtf"] = await _fetch_mtf(tv, r["ticker"])
                 # flags need the weekly RSI from mtf, and the entry zone needs the flags, so both
                 # are computed here rather than in _analyze_candidate (which runs before the fetch)
@@ -355,6 +404,7 @@ async def scan_opportunities(body: ScanBody):
         "passed_count": len(passed),
         "scanned_count": len(results),
         "note": note,
+        "rate_limited": _rate_limit_info(),
         "timestamp": _now_iso(),
     }
 
@@ -375,6 +425,10 @@ async def scan_watchlist(body: WatchlistScanBody):
     try:
         async with tv_session() as tv:
             for sym in tickers:
+                if cooldown_left() > 0:
+                    unresolved.append(sym)
+                    results.append({"ticker": sym, "error": RATE_LIMITED, "passes_filter": False})
+                    continue
                 cand = await _analyze_candidate(tv, sym, None, body)
                 if "error" in cand:
                     unresolved.append(sym)
@@ -385,7 +439,7 @@ async def scan_watchlist(body: WatchlistScanBody):
             for r in results:
                 if "error" in r:
                     continue
-                r["indicators"]["mtf"] = await _fetch_mtf(tv, r["ticker"])
+                r["indicators"]["mtf"] = await _fetch_mtf(tv, r["ticker"]) if cooldown_left() <= 0 else None
                 r["overextension"] = overextension_flags(r["indicators"], r["indicators"].get("mtf"))
                 r["suggested"] = suggest_levels(r["indicators"], r["overextension"])
     except Exception as exc:  # noqa: BLE001 — genuine connection failure
@@ -393,6 +447,9 @@ async def scan_watchlist(body: WatchlistScanBody):
 
     resolved = [r for r in results if "error" not in r]
     note = f"no live data for: {', '.join(unresolved)}" if unresolved else None
+    limited = _rate_limit_info()
+    if limited:
+        note = f"{_rate_limited_detail('watchlist scan')} ({note})" if note else _rate_limited_detail("watchlist scan")
     return {
         "params": body.model_dump(),
         "candidates": resolved,        # ALL resolved (each carries passes_filter)
@@ -400,6 +457,7 @@ async def scan_watchlist(body: WatchlistScanBody):
         "passed_count": sum(1 for r in resolved if r["passes_filter"]),
         "scanned_count": len(resolved),
         "note": note,
+        "rate_limited": limited,
         "timestamp": _now_iso(),
     }
 
@@ -409,9 +467,11 @@ async def market_overview():
     try:
         async with tv_session() as tv:
             ov = await tv.market_overview(limit=8)
-            scr = await tv.screener(min_score=60, limit=40)
+            scr = await tv.screener(min_score=60, limit=40) if not is_rate_limited(ov) else ov
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"market-overview failed: {exc!r}")
+    if is_rate_limited(ov) or is_rate_limited(scr):
+        raise HTTPException(status_code=503, detail=_rate_limited_detail("market-overview"))
 
     stats = ov.get("market_stats", {}) or {}
     adv, dec = stats.get("advancing", 0) or 0, stats.get("declining", 0) or 0
@@ -459,9 +519,14 @@ async def index_tracker():
     try:
         async with tv_session() as tv:
             for m in INDEX_MAP:
-                ind = extract_indicators(await tv.coin_analysis(m["coin_symbol"]))
+                raw = await tv.coin_analysis(m["coin_symbol"])
+                if is_rate_limited(raw):
+                    break  # a partial snapshot would overwrite the backend's good cache
+                ind = extract_indicators(raw)
                 has_level = "error" not in ind
                 ia = await tv.index_analysis(m["index"])
+                if is_rate_limited(ia):
+                    break
                 internals = _trim_internals(ia) if (ia and "error" not in ia) else {
                     "stats": {}, "sectors": [], "top_gainers": [], "top_losers": [],
                 }
@@ -476,6 +541,8 @@ async def index_tracker():
                 })
     except Exception as exc:  # noqa: BLE001 — genuine connection failure
         raise HTTPException(status_code=503, detail=f"index-tracker failed: {exc!r}")
+    if cooldown_left() > 0:
+        raise HTTPException(status_code=503, detail=_rate_limited_detail("index-tracker"))
     return {"indices": out, "timestamp": _now_iso()}
 
 
@@ -501,13 +568,18 @@ async def _yahoo_quote(tv, symbol):
 async def gold_analysis():
     try:
         async with tv_session() as tv:
-            ind = extract_indicators(await tv.coin_analysis(GOLD_SYMBOL, exchange=GOLD_EXCHANGE))
+            raw = await tv.coin_analysis(GOLD_SYMBOL, exchange=GOLD_EXCHANGE)
+            if is_rate_limited(raw):
+                raise HTTPException(status_code=503, detail=_rate_limited_detail("gold-analysis"))
+            ind = extract_indicators(raw)
             has_data = "error" not in ind
             mtf = await _fetch_mtf(tv, GOLD_SYMBOL, exchange=GOLD_EXCHANGE) if has_data else None
             egp = await tv.yahoo_price("EGP=X")
             gc = await tv.yahoo_price("GC=F")
             dxy = await _yahoo_quote(tv, "DX-Y.NYB")
             us10y = await _yahoo_quote(tv, "^TNX")
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001 — genuine connection failure
         raise HTTPException(status_code=503, detail=f"gold-analysis failed: {exc!r}")
 

@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
+import time
 from contextlib import asynccontextmanager
 
 from mcp import ClientSession, StdioServerParameters
@@ -81,14 +83,90 @@ _TRANSIENT_MARKERS = (
 
 
 def _is_transient(result: dict) -> bool:
-    """True if a tool RESULT is the empty-body/throttle signature (a reconnect can recover)."""
+    """True if a tool RESULT is the legacy empty-body/stuck-connection signature (a reconnect can
+    recover). Only plain-string errors qualify: a structured 0.8.1 error is the server telling us
+    TradingView itself refused, and reconnecting just hits the same rate limit again."""
     if not isinstance(result, dict):
         return False
     err = result.get("error")
-    if not err:
+    if not isinstance(err, str) or not err:
         return False
-    low = str(err).lower()
+    low = err.lower()
     return any(m in low for m in _TRANSIENT_MARKERS)
+
+
+# ── TradingView rate limit (v2.7.1) ──────────────────────────────────────────
+# Since 0.8.1 the server reports an upstream refusal (e.g. HTTP 429 with an empty body) as a
+# structured, retryable RESULT: {"error": {"code": "UPSTREAM_ERROR", "retryable": true,
+# "retry_after_s": 60, ...}}. While that lasts every call fails the same way, so the bridge stops
+# calling TradingView for retry_after_s instead of retrying. These tools use other upstreams
+# (Yahoo, RSS) and are never blocked.
+NON_TV_TOOLS = frozenset({"yahoo_price", "financial_news"})
+DEFAULT_COOLDOWN_S = float(os.environ.get("TV_COOLDOWN_S", "60"))
+_UPSTREAM_CODES = frozenset({
+    "UPSTREAM_RATE_LIMIT", "UPSTREAM_ERROR", "UPSTREAM_TIMEOUT", "ALL_BATCHES_FAILED", "UPSTREAM_COOLDOWN",
+})
+RATE_LIMITED = "tradingview_rate_limited"
+
+
+def upstream_retry_after(result) -> float | None:
+    """Seconds to wait when a RESULT is a retryable upstream refusal; None otherwise."""
+    if not isinstance(result, dict):
+        return None
+    err = result.get("error")
+    if not isinstance(err, dict) or err.get("code") not in _UPSTREAM_CODES:
+        return None
+    if not (err.get("retryable") or err.get("code") in ("UPSTREAM_RATE_LIMIT", "UPSTREAM_COOLDOWN")):
+        return None
+    try:
+        wait = float(err.get("retry_after_s") or DEFAULT_COOLDOWN_S)
+    except (TypeError, ValueError):
+        wait = DEFAULT_COOLDOWN_S
+    return max(1.0, wait)
+
+
+def is_rate_limited(result) -> bool:
+    return upstream_retry_after(result) is not None
+
+
+class CircuitBreaker:
+    """Opens on a TradingView rate limit; while open, TradingView calls return at once."""
+
+    def __init__(self, clock=time.monotonic):
+        self._clock = clock
+        self._until = 0.0
+        self.last_error: str | None = None
+
+    def remaining(self) -> float:
+        return max(0.0, self._until - self._clock())
+
+    def blocked(self, name: str) -> dict | None:
+        if name in NON_TV_TOOLS:
+            return None
+        left = self.remaining()
+        if left <= 0:
+            return None
+        secs = math.ceil(left)
+        return {"error": {
+            "code": "UPSTREAM_COOLDOWN", "retryable": True, "retry_after_s": secs,
+            "message": f"TradingView is rate-limiting us; not calling it for another {secs}s.",
+        }}
+
+    def record(self, name: str, result) -> None:
+        if name in NON_TV_TOOLS:
+            return
+        wait = upstream_retry_after(result)
+        if wait is not None:
+            if (result.get("error") or {}).get("code") == "UPSTREAM_COOLDOWN":
+                return  # our own short-circuit reply: don't extend the window
+            self._until = self._clock() + wait
+            self.last_error = str(result["error"].get("message", ""))[:200]
+        elif not (isinstance(result, dict) and result.get("error")):
+            self._until = 0.0  # a clean TradingView reply closes it
+
+    def state(self) -> dict:
+        left = self.remaining()
+        return {"open": left > 0, "retry_after_s": math.ceil(left), "last_error": self.last_error}
 
 
 class _Reconnect(Exception):
@@ -100,7 +178,8 @@ class _Reconnect(Exception):
 # (empty bodies — the market-wide screener fails first). One long-lived connection,
 # owned entirely by a single task, avoids that and sidesteps anyio cross-task teardown.
 class _Manager:
-    def __init__(self):
+    def __init__(self, breaker: CircuitBreaker | None = None):
+        self.breaker = breaker or CircuitBreaker()
         self._queue: asyncio.Queue | None = None
         self._task = None
         self.tools: list[str] = []
@@ -145,6 +224,11 @@ class _Manager:
                                 attempts = 0
                             if fut.done():
                                 continue
+                            # queued before the breaker opened: answer without calling TradingView
+                            blocked = self.breaker.blocked(name)
+                            if blocked is not None:
+                                fut.set_result(blocked)
+                                continue
                             try:
                                 res = await asyncio.wait_for(
                                     session.call_tool(name, args), timeout=CALL_TIMEOUT
@@ -175,12 +259,26 @@ class _Manager:
     async def call(self, name: str, args: dict) -> dict:
         if self._queue is None:
             return {"error": "MCP client not started"}
+        blocked = self.breaker.blocked(name)
+        if blocked is not None:
+            return blocked
         fut = asyncio.get_event_loop().create_future()
         await self._queue.put((name, args, fut))
-        return await fut
+        res = await fut
+        self.breaker.record(name, res)
+        return res
 
 
 _manager = _Manager()
+
+
+def breaker_state() -> dict:
+    return _manager.breaker.state()
+
+
+def cooldown_left() -> float:
+    """Seconds until TradingView may be called again (0 when the breaker is closed)."""
+    return _manager.breaker.remaining()
 
 
 async def start_client():
