@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.7.1
+
+**When TradingView rate-limits the board, it now says so in seconds instead of timing out.**
+TradingView started answering the bridge with "too many requests" (HTTP 429). The MCP server
+reports that as a structured "wait about 60 seconds" error, but the bridge mistook it for its old
+stuck-connection signal: it restarted the server and retried, then retried the multi-timeframe call
+three more times on top. A single ticker took over three minutes, every retry kept hitting the
+limit, and the board showed a generic timeout. Now the bridge recognises the rate limit, stops
+calling TradingView for as long as it asks (Yahoo prices and news are unaffected), and stops
+looping through the remaining tickers. A refresh keeps the last good prices and shows "TradingView
+is rate-limiting us — showing the last prices (retry in Ns)"; scans, indices and gold say the same.
+While it lasts, Refresh no longer pays for an AI read of prices it couldn't update (or records that
+read in the journal as current), and "Last refresh" only moves when a price actually refreshed. The
+bridge's price cache no longer gets overwritten with errors. `/mcp-check` shows the breaker's state.
+
 ## 2.7.0
 
 **The board now reviews every closed trade.** About two weeks after a trade fully closes, once Yahoo
