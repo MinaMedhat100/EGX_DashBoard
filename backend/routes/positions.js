@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { load, save, getPosition } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
-import { applyLive } from './refresh.js';
+import { applyLive, rateLimitNotice } from './refresh.js';
 import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
 import { applyAiLevels, commitLevels, recomputeDerived } from '../services/levelService.js';
 import { correctEntry } from '../services/orderService.js';
@@ -30,6 +30,15 @@ router.post('/positions/:ticker/refresh-ai', async (req, res, next) => {
       try {
         const live = await bridge.refreshPrices([ticker]);
         applyLive(data, live); // only this ticker updates; others are skipped
+        const stale = rateLimitNotice(live);
+        if (stale) {
+          // Don't spend a paid AI read (and journal it as current) on a price we couldn't refresh.
+          await save(data);
+          return res.json({
+            ok: true, position: posn, applied: false, skipped_ai: true, stale,
+            live_error: `TradingView is rate-limiting us — price not refreshed, AI skipped (retry in ${stale.retry_after_s ?? 60}s)`,
+          });
+        }
       } catch (e) { live_error = e.message; }
     }
 

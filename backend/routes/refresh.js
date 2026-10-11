@@ -20,12 +20,22 @@ function fmtDailyChg(price, pct) {
   return `${s(egp)}  (${s(pct)}%)`;
 }
 
-// Merge bridge live data into positions, recompute P&L, status and alerts.
+// The bridge's flag that TradingView is rate-limiting us (v2.7.1) → a notice for the UI, else null.
+export function rateLimitNotice(live) {
+  const rl = live?._rate_limited;
+  return rl ? { reason: 'tradingview_rate_limited', retry_after_s: rl.retry_after_s ?? null } : null;
+}
+
+// Merge bridge live data into positions, recompute P&L, status and alerts. Tickers the bridge
+// couldn't price keep their last good data. Returns how many positions were updated; last_refresh
+// only moves when at least one was, so the sidebar never claims a refresh that didn't happen.
 export function applyLive(data, live) {
+  let updated = 0;
   for (const p of data.positions) {
     if (!p.is_liquid) continue;
     const d = live?.[p.ticker];
     if (!d || d.error || d.price == null) continue;
+    updated++;
 
     const prevDI = p.indicators
       ? { plus_di: p.indicators.plus_di, minus_di: p.indicators.minus_di }
@@ -50,8 +60,8 @@ export function applyLive(data, live) {
     p.status_key = status;
     p.alert = buildAlert(p, d, status, prevDI);
   }
-  data.last_refresh = new Date().toISOString();
-  return data;
+  if (updated) data.last_refresh = new Date().toISOString();
+  return updated;
 }
 
 router.post('/refresh', async (_req, res, next) => {
@@ -61,11 +71,13 @@ router.post('/refresh', async (_req, res, next) => {
     const live = await bridge.refreshPrices(tickers);
     applyLive(data, live);
     await save(data);
+    const stale = rateLimitNotice(live);
     res.json({
       ok: true,
       last_refresh: data.last_refresh,
       positions: data.positions,
       source: 'mcp-bridge',
+      ...(stale ? { stale } : {}),
     });
   } catch (e) { next(e); }
 });
