@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.9.0
+
+**The Indices page now shows every support and resistance zone and a structured read.** Each index
+used to get one support, one resistance and a paragraph. Now the bridge also fetches the weekly
+chart for each index (three extra TradingView calls per refresh). Code collects every level both
+timeframes offer: pivots, EMA10–200, weekly SMA50/200, Bollinger bands, and the day's and week's
+range. It merges levels within half a daily ATR into zones and scores each zone by how many levels
+agree there, with a weekly level counting double. The AI gets the numbered zones and explains them;
+it can't invent levels, and a scenario level that sits away from every zone is tagged "off-zone".
+The read is split into labelled blocks:
+- **Trend & momentum**
+- **Breadth & sectors**
+- **Scenarios** (bull and bear trigger levels with targets)
+- **What it means for me** (new entries, open positions, the signal to watch)
+
+The page is now tabbed: three index tiles, and a detail view with the zone ladder beside the
+sections. The AI read runs isolated (no tools) and shows its cost. If it fails, the zones still
+appear with the reason.
+
 ## 2.8.0
 
 **The board now flags lessons that keep repeating.** A new 🧠 **Lessons** page reads every

@@ -37,8 +37,13 @@ traded automatically, and the AI never changes a level on its own: it proposes, 
 - **Log this as a bracket** opens the order form pre-filled from the card.
 - The analyses also get recent news headlines and the current market regime.
 
-**EGX Indices** — EGX30 / 70 / 100 level, trend, breadth and sector internals, with an AI regime
-read (Risk-On / Neutral / Risk-Off) that feeds the other analyses.
+**EGX Indices**
+- EGX30 / 70 / 100 as tabs.
+- Each one has a ladder of support/resistance zones built in code from daily and weekly levels
+  (pivots, EMAs, SMAs, Bollinger bands, day/week range), merged and scored by agreement.
+- Each one has a sectioned AI read: trend & momentum, breadth & sectors, bull/bear scenarios tied to
+  the zones, and what it means for new entries and open positions.
+- The overall regime read (Risk-On / Neutral / Risk-Off) feeds the other analyses.
 
 **Goldx** — a gold swing tracker (PAXG as the spot-gold proxy, USD/oz, with USD/EGP, DXY and the US
 10-year yield) with its own AI entries and position.
