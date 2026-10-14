@@ -205,4 +205,45 @@ export function recomputeDerived(position) {
     position.status_key = status;
     position.alert = buildAlert(position, live, status, null);
   }
+  refreshStopWarning(position);
+}
+
+// ── stop inside noise (v2.8.0) ───────────────────────────────────────────────
+// A stop closer than STOP_ATR_MULT × ATR below the ENTRY gets knocked out by an ordinary day (SIPC,
+// Sep 2026: an entry correction left the stop 0.4× ATR away, unwarned). The stop lives on
+// ThndrX, so the board only warns. Stops at or above the entry are break-even/profit stops: skipped.
+export function stopNoiseWarning(position) {
+  const entry = pos(position.avg_cost);
+  const atr = pos(position.indicators?.atr);
+  if (entry == null || atr == null) return null;
+  const candidates = position.brackets
+    ? openLots(position.brackets).map((l) => ({ lot: l.id, stop: pos(l.stop), shares: l.shares || 0 }))
+    : [{ lot: null, stop: pos(position.stop_loss), shares: position.shares || 0 }];
+  const inside = candidates.filter((c) => c.stop != null && c.stop < entry && entry - c.stop < STOP_ATR_MULT * atr);
+  if (!inside.length) return null;
+  const safer = round2(entry - STOP_ATR_MULT * atr);
+  const risk = inside.reduce((s, c) => s + (entry - c.stop) * c.shares, 0);
+  const sameRisk = Math.floor(risk / (entry - safer));
+  const stops = inside.map((c) => ({ lot: c.lot, stop: c.stop, atr_mult: round2((entry - c.stop) / atr) }));
+  const what = stops.map((s) => `${s.lot ? `Lot ${s.lot} stop` : 'stop'} ${fmt2(s.stop)} is only ${s.atr_mult}× ATR`).join(' · ');
+  const text = `${what} below your ${fmt2(entry)} entry (minimum ${STOP_ATR_MULT}×) — widen to ≤ ${fmt2(safer)} and cut to ~${sameRisk}sh to keep the same risk, or accept it`;
+  return { text, stops, safer_stop: safer, same_risk_shares: sameRisk };
+}
+
+// Keep an existing warning current, or clear it once the stop is wide enough. Never creates one.
+export function refreshStopWarning(position) {
+  if (!position.stop_warning) return;
+  const w = stopNoiseWarning(position);
+  if (w) position.stop_warning = { ...w, at: position.stop_warning.at };
+  else delete position.stop_warning;
+}
+
+// After an entry correction: set (or clear) the card flag and note it on the journal's correction event.
+export function correctionWarning(position, report, at = new Date().toISOString()) {
+  const w = stopNoiseWarning(position);
+  if (!w) { delete position.stop_warning; return null; }
+  position.stop_warning = { ...w, at };
+  const ev = (report?.events || []).find((e) => e.kind === 'correction');
+  if (ev) ev.stop_warning = w.text;
+  return w;
 }
