@@ -5,6 +5,7 @@ import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildZones, nearestZone, zoneGap, ZONE_MERGE_ATR } from './zoneService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STRATEGY_FILE = path.join(__dirname, '..', '..', 'STRATEGY.md');
@@ -384,51 +385,163 @@ export async function analyzeOpportunities(candidates, market, exclude, model = 
   return finalizeOpportunities(arr, mode);
 }
 
-// ── EGX indices analysis ───────────────────────────────────────────────────────
+// ── EGX indices analysis (v2.9.0: code-built zones + a sectioned read) ─────────
+export const INDICES_SYSTEM =
+  'You are an expert EGX market strategist. You read index data and reply with strict JSON only — no prose, no markdown.';
+
+const INDEX_REGIMES = ['Risk-On', 'Neutral', 'Risk-Off'];
+const INDEX_TRENDS = ['Bullish', 'Neutral', 'Bearish'];
+const INDEX_TONES = ['bull', 'bear', 'neutral'];
+
+// Zones are built here, before the AI, so the page can show them even when the AI call fails.
+export function withZones(indices) {
+  return indices.map(({ levels, ...x }) => ({ ...x, zones: buildZones(levels, x.level, x.indicators?.atr) }));
+}
+
+const zoneForPrompt = (z) => ({
+  id: z.id, lo: z.lo, hi: z.hi, role: z.role, score: z.score, dist_pct: z.dist_pct, dist_atr: z.dist_atr,
+  sources: z.sources.map((s) => `${s.name} ${s.tf}`),
+});
+
 export function indicesPrompt(indices, strategy) {
   const slim = indices.map((x) => ({
     index: x.index, level: x.level, change_pct: x.change_pct,
     indicators: x.indicators, mtf: x.mtf, stats: x.stats, sectors: x.sectors,
+    weekly_ok: x.weekly_ok ?? false,
+    zones: (x.zones || []).map(zoneForPrompt),
   }));
   return [
-    'You are an expert EGX market strategist. Read the REGIME of each EGX index below and return',
-    'STRICT JSON only — no prose, no markdown.',
+    'Read the REGIME and STRUCTURE of each EGX index below and return STRICT JSON only.',
     '',
     '=== STRATEGY ===', strategy,
     '',
-    '=== INDICES (live level + indicators + breadth + sector rotation) ===',
+    '=== INDICES (level, indicators, multi-timeframe, breadth, sectors, support/resistance zones) ===',
     JSON.stringify(slim, null, 1),
+    '',
+    'ZONES were built in code from real levels: each has an id (Z1 = highest), a price range lo–hi, a role',
+    '(resistance above price, support below, at_price around it), a score (daily level 1, weekly level 2) and',
+    'its sources ("EMA50 W" = weekly EMA50, "Pivot S1 D" = daily-call pivot S1). Do NOT invent levels:',
+    'every scenario level and target must sit in or next to one of these zones. weekly_ok false means the',
+    'weekly levels could not be fetched — say so instead of guessing weekly structure.',
     '',
     'For EACH index output one object. Respond with ONLY this JSON:',
     '{"indices":[{',
     '  "index": "EGX30",',
     '  "regime": "Risk-On|Neutral|Risk-Off",',
     '  "trend": "Bullish|Neutral|Bearish",',
-    '  "thesis": "2-3 sentences citing breadth %, RSI/ADX, sector leadership and the W/D bias",',
+    '  "headline": "one line: the gist of this index right now",',
+    '  "trend_momentum": [ {"label": "Daily trend|Weekly trend|Momentum|Trend strength|…", "read": "1-3 words",',
+    '                       "tone": "bull|bear|neutral", "detail": "the numbers behind it (EMAs, RSI, MACD, ADX/DI, mtf)"} ],',
+    '  "breadth": {"read": "1-3 words", "tone": "bull|bear|neutral", "detail": "advancing/declining and breadth %",',
+    '              "leaders": ["sector +x%"], "laggards": ["sector -x%"], "note": "what breadth + rotation say about the move"},',
+    '  "zones": [ {"id": "Z3", "note": "why this zone matters (which levels confluence, what happens there)"} ],',
+    '  "scenarios": {',
+    '    "bull": {"trigger": "daily close above", "level": number, "target": number, "note": "what confirms it"},',
+    '    "bear": {"trigger": "daily close below", "level": number, "target": number, "note": "what confirms it"}',
+    '  },',
+    '  "for_me": {"new_entries": "what this means for opening swing longs", "open_positions": "what it means for',
+    '             open positions and their stops", "watch": "the one signal to watch next"},',
     '  "key_support": number, "key_resistance": number',
     '}],',
     '"overall": { "regime": "Risk-On|Neutral|Risk-Off", "summary": "one line on overall EGX posture" }}',
     '',
-    'Base regime on breadth (advancing vs declining), trend (price vs EMA50/EMA200), RSI/ADX and the',
-    'multi-timeframe (mtf) weekly/daily bias. key_support/key_resistance in index points from the',
-    "index's own support_1 / resistance_1. Output JSON only.",
+    'trend_momentum: 3-5 rows. zones: a note for each zone that matters (at least the nearest support and',
+    'resistance). Base regime on breadth (advancing vs declining), trend (price vs EMA20/50/200), RSI/ADX/DI',
+    'and the weekly/daily bias. All levels in index points. Output JSON only.',
   ].join('\n');
+}
+
+const sOr = (v) => (typeof v === 'string' ? v : '');
+const nOr = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const toneOr = (t) => (INDEX_TONES.includes(t) ? t : 'neutral');
+const strList = (a, n) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(0, n) : []);
+const firstSentence = (t) => (t.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? t).trim();
+
+function offZone(v, zones, atr) {
+  if (v == null || !zones.length || !(atr > 0)) return false;
+  return zones.every((z) => zoneGap(v, z) > ZONE_MERGE_ATR * atr);
+}
+
+function validScenario(s, zones, atr) {
+  if (!s || typeof s !== 'object') return null;
+  const level = nOr(s.level);
+  if (level == null) return null;
+  const target = nOr(s.target);
+  return {
+    trigger: sOr(s.trigger), level, target, note: sOr(s.note),
+    off_zone: offZone(level, zones, atr) || offZone(target, zones, atr),
+  };
+}
+
+export function validateIndexAi(ai, zones = [], atr = null) {
+  if (!ai || typeof ai !== 'object' || Array.isArray(ai)) return null;
+  const ids = new Set(zones.map((z) => z.id));
+  const thesis = sOr(ai.thesis);
+  const b = ai.breadth && typeof ai.breadth === 'object' ? ai.breadth : null;
+  const f = ai.for_me && typeof ai.for_me === 'object' ? ai.for_me : null;
+  return {
+    index: sOr(ai.index),
+    regime: INDEX_REGIMES.includes(ai.regime) ? ai.regime : 'Neutral',
+    trend: INDEX_TRENDS.includes(ai.trend) ? ai.trend : 'Neutral',
+    headline: sOr(ai.headline) || firstSentence(thesis),
+    ...(thesis ? { thesis } : {}),
+    trend_momentum: Array.isArray(ai.trend_momentum)
+      ? ai.trend_momentum.filter((r) => r && typeof r.label === 'string').slice(0, 6)
+        .map((r) => ({ label: r.label, read: sOr(r.read), tone: toneOr(r.tone), detail: sOr(r.detail) }))
+      : [],
+    breadth: b ? {
+      read: sOr(b.read), tone: toneOr(b.tone), detail: sOr(b.detail),
+      leaders: strList(b.leaders, 4), laggards: strList(b.laggards, 4), note: sOr(b.note),
+    } : null,
+    zones: Array.isArray(ai.zones)
+      ? ai.zones.filter((z) => z && ids.has(z.id) && typeof z.note === 'string').map((z) => ({ id: z.id, note: z.note }))
+      : [],
+    scenarios: {
+      bull: validScenario(ai.scenarios?.bull, zones, atr),
+      bear: validScenario(ai.scenarios?.bear, zones, atr),
+    },
+    for_me: f ? { new_entries: sOr(f.new_entries), open_positions: sOr(f.open_positions), watch: sOr(f.watch) } : null,
+    key_support: nOr(ai.key_support) ?? nearestZone(zones, 'support')?.mid ?? null,
+    key_resistance: nOr(ai.key_resistance) ?? nearestZone(zones, 'resistance')?.mid ?? null,
+  };
 }
 
 export function mergeIndexAi(indices, ai) {
   const byName = {};
   for (const a of (ai?.indices || [])) if (a && a.index) byName[a.index] = a;
   return {
-    indices: indices.map((x) => ({ ...x, ai: byName[x.index] || null })),
+    indices: indices.map((x) => ({
+      ...x,
+      ai: byName[x.index] ? validateIndexAi(byName[x.index], x.zones || [], x.indicators?.atr) : null,
+    })),
     overall: ai?.overall || null,
   };
 }
 
-export async function analyzeIndices(indices, model = DEFAULT_MODEL) {
-  const strategy = await strategyText();
-  const text = await runClaude(indicesPrompt(indices, strategy), model);
-  const parsed = extractJson(text);
-  return mergeIndexAi(indices, parsed);
+export async function analyzeIndices(indices, model = DEFAULT_MODEL, { run = runClaude, strategy } = {}) {
+  const s = strategy ?? await strategyText();
+  const { text, cost_usd } = await run(indicesPrompt(indices, s), model,
+    { isolated: true, systemPrompt: INDICES_SYSTEM, envelope: true });
+  return { ...mergeIndexAi(indices, extractJson(text)), cost_usd };
+}
+
+export async function buildIndicesSnapshot(indices, model, { analyze = analyzeIndices, now = () => new Date() } = {}) {
+  const zoned = withZones(indices);
+  let merged = { indices: zoned.map((x) => ({ ...x, ai: null })), overall: null, cost_usd: null };
+  let ai_error = null;
+  try {
+    merged = await analyze(zoned, model);
+  } catch (e) {
+    ai_error = e.message; // AI unavailable: keep the data and the zones
+  }
+  return {
+    timestamp: now().toISOString(),
+    model,
+    overall: merged.overall,
+    cost_usd: merged.cost_usd ?? null,
+    ai_error,
+    indices: merged.indices,
+  };
 }
 
 // ── gold (Goldx) analysis ──────────────────────────────────────────────────────

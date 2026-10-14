@@ -1,7 +1,7 @@
-// indices.js — GET /api/indices (cached snapshot) + POST /api/indices/refresh (fetch + AI + cache).
+// indices.js — GET /api/indices (cached snapshot) + POST /api/indices/refresh (fetch + zones + AI + cache).
 import { Router } from 'express';
 import { bridge } from '../services/bridgeClient.js';
-import { analyzeIndices, DEFAULT_MODEL } from '../services/analystService.js';
+import { buildIndicesSnapshot, DEFAULT_MODEL } from '../services/analystService.js';
 import * as indicesStore from '../services/indicesStore.js';
 
 const router = Router();
@@ -25,18 +25,7 @@ router.post('/indices/refresh', async (req, res, next) => {
       return res.status(200).json({ ok: false, error: `bridge: ${e.message}`, snapshot: cached });
     }
 
-    const indices = data.indices || [];
-    let merged = { indices: indices.map((x) => ({ ...x, ai: null })), overall: null };
-    try {
-      merged = await analyzeIndices(indices, model); // AI failure → keep data, ai null
-    } catch { /* AI unavailable */ }
-
-    const snapshot = {
-      timestamp: new Date().toISOString(),
-      model,
-      overall: merged.overall,
-      indices: merged.indices,
-    };
+    const snapshot = await buildIndicesSnapshot(data.indices || [], model);
     await indicesStore.save(snapshot);
     res.json({ ok: true, snapshot });
   } catch (e) { next(e); }
