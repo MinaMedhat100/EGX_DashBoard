@@ -61,6 +61,8 @@ export interface Brackets { entry_price: number; lots: Lot[]; }
 
 export interface Position {
   ticker: string;
+  /** v2.8.0: set by an entry correction that left a stop inside 1.5× ATR; cleared once it's wide enough. */
+  stop_warning?: { text: string; safer_stop: number; same_risk_shares: number; at: string } | null;
   avg_cost: number;
   live_price: number;
   shares: number;
@@ -432,7 +434,7 @@ export type JournalEvent =
     }
   | { at: string; kind: 'levels'; source: string; from: JournalLevels | null; to: JournalLevels }
   | { at: string; kind: 'order'; type: string; lot: string | null; shares: number | null; price: number | null; date: string; realized_pnl: number | null }
-  | { at: string; kind: 'correction'; from: { shares: number; avg_cost: number } | null; to: { shares: number | null; avg_cost: number | null }; date?: string }
+  | { at: string; kind: 'correction'; from: { shares: number; avg_cost: number } | null; to: { shares: number | null; avg_cost: number | null }; date?: string; stop_warning?: string }
   | { at: string; kind: 'gap'; note: string };
 
 export interface TradeJournal {

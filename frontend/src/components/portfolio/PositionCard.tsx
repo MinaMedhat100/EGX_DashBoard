@@ -155,6 +155,7 @@ export function PositionCard({
       </div>
 
       {noLive && <div className="mt-2 text-[11px] text-status-yellow">⚠ No TV data — verify price in Thndr</div>}
+      {p.stop_warning && <div className="mt-2 text-[11px] text-status-yellow">⚠ {p.stop_warning.text}</div>}
 
       {p.is_liquid && <PriceRangeBar p={p} />}
 

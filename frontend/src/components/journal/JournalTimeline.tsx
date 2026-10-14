@@ -38,7 +38,8 @@ function EventLine({ e, repeats, exitDate }: { e: JournalEvent; repeats: number;
   if (e.kind === 'correction') {
     return (
       <div>
-        {date} · Entry corrected {e.from ? `${e.from.shares}sh @ ${e.from.avg_cost}` : '?'} → {e.to.shares ?? '?'}sh @ {e.to.avg_cost ?? '?'}{lateTag}
+        {date} · Entry corrected {e.from ? `${e.from.shares}sh @ ${e.from.avg_cost}` : '?'} → {e.to.shares ?? '?'}sh @ {e.to.avg_cost ?? '?'}
+        {e.stop_warning && <span className="text-status-yellow"> · ⚠ {e.stop_warning}</span>}{lateTag}
       </div>
     );
   }

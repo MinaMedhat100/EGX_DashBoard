@@ -125,7 +125,7 @@ export const api = {
     ),
 
   correctEntry: (ticker: string, entry: { shares: number; avg_cost: number }) =>
-    req<{ ok: boolean; portfolio: PortfolioData; toast: string; journal_warning?: string }>(
+    req<{ ok: boolean; portfolio: PortfolioData; toast: string; warning?: string; journal_warning?: string }>(
       `/positions/${encodeURIComponent(ticker)}/correct-entry`,
       { method: 'POST', body: JSON.stringify(entry) },
     ),

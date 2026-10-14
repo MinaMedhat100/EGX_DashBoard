@@ -133,6 +133,7 @@ function Shell() {
       noteJournal(r.journal_warning);
       setData(r.portfolio);
       toast(r.toast || `${ticker}: entry corrected`, 'success');
+      if (r.warning) toast(r.warning, 'error');
     } catch (e) {
       toast(`${ticker}: ${(e as Error).message}`, 'error');
     }
