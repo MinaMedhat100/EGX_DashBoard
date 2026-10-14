@@ -13,6 +13,7 @@ import watchlistRoutes from './routes/watchlist.js';
 import indicesRoutes from './routes/indices.js';
 import goldRoutes from './routes/gold.js';
 import journalRoutes from './routes/journal.js';
+import lessonsRoutes from './routes/lessons.js';
 import { bridge } from './services/bridgeClient.js';
 import { DEFAULT_MODEL } from './services/analystService.js';
 import { postmortems, startPostmortemScheduler } from './services/postmortemRunner.js';
@@ -44,6 +45,7 @@ app.use('/api', watchlistRoutes);
 app.use('/api', indicesRoutes);
 app.use('/api', goldRoutes);
 app.use('/api', journalRoutes);
+app.use('/api', lessonsRoutes);
 
 // central error handler
 // eslint-disable-next-line no-unused-vars
