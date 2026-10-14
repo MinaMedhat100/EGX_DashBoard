@@ -80,8 +80,8 @@ export function IndexSections({ d }: { d: IndexData }) {
               <span className="text-txt-primary/85">{ai.breadth.detail}</span>
             </div>
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {ai.breadth.leaders.map((x) => <span key={x} className="px-1.5 rounded border border-status-green/40 text-status-green">{x}</span>)}
-              {ai.breadth.laggards.map((x) => <span key={x} className="px-1.5 rounded border border-status-red/40 text-status-red">{x}</span>)}
+              {ai.breadth.leaders.map((x) => <span key={x} className="px-1.5 rounded border border-status-green/40 text-status-green">{x.replace(/_/g, ' ')}</span>)}
+              {ai.breadth.laggards.map((x) => <span key={x} className="px-1.5 rounded border border-status-red/40 text-status-red">{x.replace(/_/g, ' ')}</span>)}
             </div>
             {ai.breadth.note && <p className="mt-1.5 text-txt-primary/85">{ai.breadth.note}</p>}
           </>
