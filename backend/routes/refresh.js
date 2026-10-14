@@ -5,7 +5,7 @@ import { load, save, liquidTickers } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
 import { evaluateStatus, buildAlert } from '../services/statusEngine.js';
 import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
-import { applyAiLevels, recomputeDerived, proposalDiffers } from '../services/levelService.js';
+import { applyAiLevels, recomputeDerived, proposalDiffers, refreshStopWarning } from '../services/levelService.js';
 import { gatherNews, latestRegime } from '../services/aiContext.js';
 import { portfolioStats } from '../services/portfolioStats.js';
 import { ensureTradeId, levelsSnapshot, recordAiRead, todayIso } from '../services/journalService.js';
@@ -59,6 +59,7 @@ export function applyLive(data, live) {
     const status = evaluateStatus(p, d);
     p.status_key = status;
     p.alert = buildAlert(p, d, status, prevDI);
+    refreshStopWarning(p);
   }
   if (updated) data.last_refresh = new Date().toISOString();
   return updated;

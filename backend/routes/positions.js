@@ -4,7 +4,7 @@ import { load, save, getPosition } from '../services/portfolioStore.js';
 import { bridge } from '../services/bridgeClient.js';
 import { applyLive, rateLimitNotice } from './refresh.js';
 import { analyzePortfolio, DEFAULT_MODEL } from '../services/analystService.js';
-import { applyAiLevels, commitLevels, recomputeDerived } from '../services/levelService.js';
+import { applyAiLevels, commitLevels, recomputeDerived, correctionWarning } from '../services/levelService.js';
 import { correctEntry } from '../services/orderService.js';
 import { gatherNews, latestRegime } from '../services/aiContext.js';
 import {
@@ -101,10 +101,16 @@ router.post('/positions/:ticker/correct-entry', async (req, res, next) => {
     const data = await load();
     const date = new Date().toISOString().slice(0, 10);
     const { toasts, journal } = correctEntry(data, { ticker, shares, avg_cost, date });
-    recomputeDerived(getPosition(data, ticker)); // shares changed -> refresh status/alert
+    const posn = getPosition(data, ticker);
+    recomputeDerived(posn); // shares changed -> refresh status/alert
+    const warning = correctionWarning(posn, journal); // stop inside 1.5× ATR of the new entry?
     await save(data);
     const journal_warning = await recordJournal((j) => applyOrderJournal(j, journal));
-    res.json({ ok: true, portfolio: data, toast: toasts.join(' · '), ...(journal_warning ? { journal_warning } : {}) });
+    res.json({
+      ok: true, portfolio: data, toast: toasts.join(' · '),
+      ...(warning ? { warning: `${ticker}: ${warning.text}` } : {}),
+      ...(journal_warning ? { journal_warning } : {}),
+    });
   } catch (e) { next(e); }
 });
 
