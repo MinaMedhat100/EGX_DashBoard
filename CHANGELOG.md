@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.8.0
+
+**The board now flags lessons that keep repeating.** A new 🧠 **Lessons** page reads every
+post-mortem and groups their lessons by category: stop placement, entry timing, overextension, and
+so on. A category is flagged once three trades with a problem verdict (process error, or went
+off-plan) share it. Each flag lists the trades behind it, how many of them still made money and at
+which stage the problem happened. Trades that got the same lesson but a harmless verdict are shown
+as "also seen, no harm", so you can tell a habit from noise. This is all counting in code, with no
+AI. A second panel checks the post-mortem facts directly: how many reviewed trades had a stop under
+1.5× ATR, and how many of those came back to the entry within 10 sessions. **Analyse remaining**
+reviews the rebuilt older trades in one run (about $0.09 each), one at a time, and stops at the
+first Claude error so a usage limit can't burn through the list. Acting on a flag stays your call.
+
+**Correcting an entry now checks the stop.** SIPC's post-mortem found that correcting its entry
+left the stop only 0.4× ATR away, well inside a normal day's range, and nothing said so. Now a
+correction that leaves a stop inside 1.5× ATR of the new entry shows an amber warning with a
+safer stop (entry − 1.5× ATR) and the share count that keeps the same risk. The warning stays on the position card until the stop is wide enough and is noted in
+the journal. The stop lives on ThndrX, so the board only warns.
+
+The cost estimate on post-mortem buttons is now $0.11, from eight real reviews ($0.07–$0.11).
+
 ## 2.7.2
 
 **A failed AI call now says why.** When the Claude CLI exits with an error it still replies with a

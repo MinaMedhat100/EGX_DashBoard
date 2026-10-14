@@ -11,7 +11,7 @@ import { strategyText } from './analystService.js';
 
 export const MAX_PER_CHECK = 3;
 export const STALE_MS = 15 * 60 * 1000;
-export const POSTMORTEM_COST_HINT = Number(process.env.POSTMORTEM_COST_HINT || 0.15); // spike 2026-10-01: $0.08 per bare call; a full review adds evidence + reply
+export const POSTMORTEM_COST_HINT = Number(process.env.POSTMORTEM_COST_HINT || 0.11); // 8 real reviews (Oct 2026): $0.067-$0.107, avg $0.086
 
 const isStaleRunning = (pm, now) => pm?.status === 'running' && now - Date.parse(pm.started_at ?? 0) > STALE_MS;
 
