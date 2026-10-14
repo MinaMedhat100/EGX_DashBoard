@@ -36,7 +36,8 @@ function ZoneRow({ z, note, mark }: { z: IndexZone; note?: string; mark?: string
 export function ZoneLadder({ d }: { d: IndexData }) {
   const zones = d.zones || [];
   if (!zones.length) {
-    return <div className="text-xs text-txt-secondary">No zones — the index level or ATR is missing. Try Refresh.</div>;
+    const why = d.zones ? 'No zones — the index level or ATR is missing. Try Refresh.' : 'Zones arrive with the next Refresh.';
+    return <div className="text-xs text-txt-secondary">{why}</div>;
   }
   const notes = Object.fromEntries((d.ai?.zones || []).map((n) => [n.id, n.note]));
   const marks = scenarioMarks(d.ai, zones);

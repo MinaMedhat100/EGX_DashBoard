@@ -17,7 +17,8 @@ export function IndexTile({ d, active, onSelect }: { d: IndexData; active: boole
     <GlowCard
       hover
       onClick={onSelect}
-      className={`p-3 cursor-pointer border-2 ${active ? 'border-accent-cyan' : 'border-transparent'}`}
+      ringColor={active ? 'rgb(var(--accent-2))' : undefined}
+      className="p-3"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
