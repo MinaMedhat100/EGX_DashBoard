@@ -479,3 +479,14 @@ export interface PostmortemSummaryItem {
   status: Postmortem['status'] | null; verdict: PostmortemResult['verdict'] | null;
   stage: string | null; category: string | null; due_estimate: string | null; auto: boolean;
 }
+
+export interface LessonRow { trade_id: string; ticker: string; closed_at: string | null; verdict: PostmortemResult['verdict']; stage: string; pnl: number | null; lesson: string }
+export interface LessonCategory { category: string; count: number; flagged: boolean; winners: number; stages: Record<string, number>; problems: LessonRow[]; also_seen: LessonRow[] }
+export interface NoiseTrade { trade_id: string; ticker: string; stop_atr: number; recovered: boolean; sessions: number | null }
+export interface LessonCoverage { closed: number; reviewed: number; waiting: number; failed: number; unreviewed: number }
+export interface BacklogState { running: boolean; total: number; done: number; skipped: number; failed_on: string | null; error: string | null; started_at: string | null; finished_at: string | null }
+export interface LessonsResponse {
+  ok: boolean; flag_at: number; categories: LessonCategory[];
+  measured: { stop_inside_noise: { checked: number; inside: number; recovered: number; trades: NoiseTrade[] } };
+  coverage: LessonCoverage; remaining: number; backlog: BacklogState; cost_hint_usd: number; model: string;
+}

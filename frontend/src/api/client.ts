@@ -17,6 +17,7 @@ import type {
   GoldState,
   GoldPosition,
   JournalNote,
+  LessonsResponse,
   Postmortem,
   PostmortemSummaryItem,
   StaleNotice,
@@ -132,6 +133,9 @@ export const api = {
 
   getJournal: (tradeId: string) =>
     req<{ ok: boolean; trade: TradeJournal }>(`/journal/${encodeURIComponent(tradeId)}`),
+  getLessons: () => req<LessonsResponse>('/lessons'),
+  analyseRemaining: () =>
+    req<{ ok: boolean; started: boolean; total: number }>('/lessons/analyse-remaining', { method: 'POST', body: '{}' }),
   getJournalSummary: () =>
     req<{ ok: boolean; trades: Record<string, PostmortemSummaryItem>; cost_hint_usd: number; model: string }>('/journal/summary'),
   saveJournalNote: (tradeId: string, text: string) =>

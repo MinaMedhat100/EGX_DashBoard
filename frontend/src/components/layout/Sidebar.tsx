@@ -29,7 +29,7 @@ function ThemeSwitch() {
   );
 }
 
-export type Tab = 'portfolio' | 'indices' | 'opportunities' | 'goldx' | 'history';
+export type Tab = 'portfolio' | 'indices' | 'opportunities' | 'goldx' | 'history' | 'lessons';
 
 function NavItem({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: string; label: string }) {
   return (
@@ -78,6 +78,7 @@ export function Sidebar({
         <NavItem active={tab === 'opportunities'} onClick={() => setTab('opportunities')} icon="🔍" label="Opportunities" />
         <NavItem active={tab === 'goldx'} onClick={() => setTab('goldx')} icon="🥇" label="Goldx" />
         <NavItem active={tab === 'history'} onClick={() => setTab('history')} icon="📜" label="History" />
+        <NavItem active={tab === 'lessons'} onClick={() => setTab('lessons')} icon="🧠" label="Lessons" />
       </nav>
 
       <div className="border-t border-border" />

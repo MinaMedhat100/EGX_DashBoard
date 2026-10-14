@@ -6,6 +6,7 @@ const TITLES: Record<Tab, { title: string; sub: string }> = {
   opportunities: { title: 'EGX Market Opportunities', sub: 'Screener results with AI-ranked entries' },
   goldx: { title: 'Goldx — Gold Swing', sub: 'AI gold entries & position (PAXG · USD/oz · Thndr/Binance)' },
   history: { title: 'Trade History', sub: 'Action log & exited positions' },
+  lessons: { title: 'Lessons', sub: 'Patterns that repeat across post-mortems' },
 };
 
 export function Header({ tab, model, bridgeOk }: { tab: Tab; model: string | null; bridgeOk: boolean | null }) {

@@ -10,6 +10,7 @@ import { IndicesPage } from './pages/IndicesPage';
 import { OpportunitiesPage } from './pages/OpportunitiesPage';
 import { GoldxPage } from './pages/GoldxPage';
 import { HistoryPage } from './pages/HistoryPage';
+import { LessonsPage } from './pages/LessonsPage';
 import { GlowCard } from './components/common/GlowCard';
 import { LogOrderModal } from './components/orders/LogOrderModal';
 import type { PortfolioData, LevelProposal, LevelsInput, Position, Opportunity, OrderPrefill, ScanRef } from './types/portfolio';
@@ -183,6 +184,7 @@ function Shell() {
           {data && tab === 'opportunities' && <OpportunitiesPage onLogOpportunity={onLogOpportunity} />}
           {data && tab === 'goldx' && <GoldxPage />}
           {data && tab === 'history' && <HistoryPage data={data} />}
+          {data && tab === 'lessons' && <LessonsPage />}
         </div>
       </main>
 
