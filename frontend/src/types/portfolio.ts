@@ -314,13 +314,44 @@ export interface ScanResponse {
   timestamp?: string;
 }
 
+export type IndexTone = 'bull' | 'bear' | 'neutral';
+
+export interface ZoneSource { name: string; tf: 'D' | 'W'; value: number; }
+
+export interface IndexZone {
+  id: string;
+  lo: number;
+  hi: number;
+  mid: number;
+  sources: ZoneSource[];
+  score: number;
+  dots: 1 | 2 | 3;
+  role: 'resistance' | 'at_price' | 'support';
+  dist_pct: number;
+  dist_atr: number;
+}
+
+export interface IndexScenario {
+  trigger: string;
+  level: number;
+  target: number | null;
+  note: string;
+  off_zone: boolean;
+}
+
 export interface IndexAi {
   index: string;
   regime: string;
   trend: string;
-  thesis: string;
-  key_support?: number;
-  key_resistance?: number;
+  headline?: string;
+  thesis?: string; // snapshots from before v2.9.0 carry only this
+  trend_momentum?: { label: string; read: string; tone: IndexTone; detail: string }[];
+  breadth?: { read: string; tone: IndexTone; detail: string; leaders: string[]; laggards: string[]; note: string } | null;
+  zones?: { id: string; note: string }[];
+  scenarios?: { bull: IndexScenario | null; bear: IndexScenario | null };
+  for_me?: { new_entries: string; open_positions: string; watch: string } | null;
+  key_support?: number | null;
+  key_resistance?: number | null;
 }
 
 export interface IndexStats {
@@ -354,6 +385,8 @@ export interface IndexData {
   top_gainers?: IndexConstituent[];
   top_losers?: IndexConstituent[];
   ai?: IndexAi | null;
+  zones?: IndexZone[];
+  weekly_ok?: boolean;
 }
 
 export interface IndexSnapshot {
@@ -361,6 +394,8 @@ export interface IndexSnapshot {
   model: string;
   overall: { regime: string; summary: string } | null;
   indices: IndexData[];
+  cost_usd?: number | null;
+  ai_error?: string | null;
 }
 
 export interface GoldAi {
