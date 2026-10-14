@@ -28,6 +28,7 @@ from .tradingview_client import (
     cooldown_left,
     is_rate_limited,
     extract_indicators,
+    extract_levels,
     extract_mtf,
     start_client,
     stop_client,
@@ -524,6 +525,12 @@ async def index_tracker():
                     break  # a partial snapshot would overwrite the backend's good cache
                 ind = extract_indicators(raw)
                 has_level = "error" not in ind
+                # weekly levels for the support/resistance zones (v2.9.0); the daily ones work without them
+                weekly = await tv.coin_analysis(m["coin_symbol"], timeframe="1W") if has_level else None
+                if is_rate_limited(weekly):
+                    break
+                weekly_ok = isinstance(weekly, dict) and "error" not in weekly
+                levels = (extract_levels(raw, "D") + (extract_levels(weekly, "W") if weekly_ok else [])) if has_level else []
                 ia = await tv.index_analysis(m["index"])
                 if is_rate_limited(ia):
                     break
@@ -537,6 +544,8 @@ async def index_tracker():
                     "change_pct": ind.get("daily_change_pct") if has_level else None,
                     "indicators": ind if has_level else {},
                     "mtf": await _fetch_mtf(tv, m["coin_symbol"]) if has_level else None,
+                    "levels": levels,
+                    "weekly_ok": weekly_ok,
                     **internals,
                 })
     except Exception as exc:  # noqa: BLE001 — genuine connection failure

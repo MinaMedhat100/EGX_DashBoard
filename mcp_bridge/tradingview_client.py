@@ -448,6 +448,50 @@ def extract_indicators(a: dict) -> dict:
     }
 
 
+# ── index support/resistance levels (v2.9.0) ───────────────────────────────────
+_LEVEL_EMAS = (10, 20, 30, 50, 100, 200)
+
+
+def _positive(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+
+
+def extract_levels(raw: dict, tf: str) -> list[dict]:
+    """Every price level one coin_analysis reply offers, as {"name", "tf", "value"}; the backend merges
+    them into zones. tf "D" includes the pivots. tf "W" skips them — TradingView's 1W pivots are not
+    usable (EGX30, Oct 2026: weekly pivot 37,601 with the index at 51,265) — and adds SMA50/200."""
+    if not isinstance(raw, dict) or "error" in raw:
+        return []
+    out: list[dict] = []
+
+    def add(name, v):
+        if _positive(v):
+            out.append({"name": name, "tf": tf, "value": round(float(v), 2)})
+
+    if tf == "D":
+        sr = raw.get("support_resistance") or {}
+        add("Pivot", sr.get("pivot"))
+        for i in (1, 2, 3):
+            add(f"Pivot S{i}", sr.get(f"support_{i}"))
+            add(f"Pivot R{i}", sr.get(f"resistance_{i}"))
+    ema = raw.get("ema") or {}
+    for p in _LEVEL_EMAS:
+        add(f"EMA{p}", ema.get(f"ema{p}"))
+    if tf == "W":
+        sma = raw.get("sma") or {}
+        add("SMA50", sma.get("sma50"))
+        add("SMA200", sma.get("sma200"))
+    bb = raw.get("bollinger_bands") or {}
+    add("BB upper", bb.get("upper"))
+    add("BB mid", bb.get("middle"))
+    add("BB lower", bb.get("lower"))
+    pd = raw.get("price_data") or {}
+    span = "Day" if tf == "D" else "Week"
+    add(f"{span} high", pd.get("high"))
+    add(f"{span} low", pd.get("low"))
+    return out
+
+
 def extract_mtf(a: dict) -> dict | None:
     """Compact multi-timeframe summary from multi_timeframe_analysis (W/D/4H/1H/15m)."""
     if not a or "error" in a:
