@@ -22,6 +22,13 @@ function needsAutoRun(pm, now) {
   return isStaleRunning(pm, now);
 }
 
+// Rebuilt trades (never auto-run) still to review: no post-mortem yet, or a failed one.
+export function backlogCandidates(journal) {
+  return journal.trades
+    .filter((t) => t.status === 'closed' && !isAutoEligible(t) && (!t.postmortem || t.postmortem.status === 'failed'))
+    .map((t) => t.trade_id);
+}
+
 export function createPostmortemRunner({
   load = loadJournal, record = recordJournal, bars = defaultBars, basketTickers = MARKET_BASKET,
   strategy = strategyText, analyze = analyzeTrade, now = () => new Date(),
@@ -109,7 +116,36 @@ export function createPostmortemRunner({
     }
   }
 
-  return { runTrade, tick };
+  // Bulk review of the rebuilt backlog (v2.8.0): one at a time, stop at the first Claude error so a
+  // usage limit can't burn through the list. Progress lives in memory; the Lessons page polls it.
+  const backlog = { running: false, total: 0, done: 0, skipped: 0, failed_on: null, error: null, started_at: null, finished_at: null };
+
+  async function runBacklog() {
+    if (backlog.running) return { status: 409, error: 'a backlog review is already running' };
+    const ids = backlogCandidates(await load());
+    if (!ids.length) return { status: 200, started: false, total: 0 };
+    Object.assign(backlog, { running: true, total: ids.length, done: 0, skipped: 0, failed_on: null, error: null, started_at: now().toISOString(), finished_at: null });
+    const job = (async () => {
+      try {
+        for (const id of ids) {
+          let r;
+          try { r = await runTrade(id, { manual: true }); }
+          catch (e) { backlog.error = `price history unavailable: ${e.message}`; backlog.failed_on = id; break; }
+          if (r.status === 200) backlog.done++;
+          else if (r.status === 502) { backlog.error = r.error; backlog.failed_on = id; break; }
+          else backlog.skipped++;
+        }
+      } finally {
+        backlog.running = false;
+        backlog.finished_at = now().toISOString();
+      }
+    })();
+    return { status: 200, started: true, total: ids.length, job };
+  }
+
+  const backlogState = () => ({ ...backlog });
+
+  return { runTrade, tick, runBacklog, backlogState };
 }
 
 export function startPostmortemScheduler(runner, { firstDelayMs = 60_000, everyMs = 6 * 3600_000 } = {}) {
