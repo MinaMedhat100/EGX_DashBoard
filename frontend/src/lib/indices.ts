@@ -1,5 +1,5 @@
 // Pure helpers for the Indices page (v2.9.0): zone ladder labels, tones, scenario markers.
-import type { IndexAi, IndexTone, IndexZone, ZoneSource } from '../types/portfolio';
+import type { IndexAi, IndexLikely, IndexNewsItem, IndexTone, IndexZone, NewsPool, ZoneSource } from '../types/portfolio';
 
 const TONE_CLASS: Record<IndexTone, string> = {
   bull: 'text-status-green border-status-green/40 bg-status-green/10',
@@ -64,4 +64,60 @@ export function costText(c: number | null | undefined): string | null {
 export function pickTab(saved: string | null, names: string[]): string | null {
   if (saved && names.includes(saved)) return saved;
   return names[0] ?? null;
+}
+
+// ── News & likely scenario (v2.10.0) ────────────────────────────────────────
+export interface NewsRow extends IndexNewsItem { impact: IndexTone; why: string; }
+
+// The AI's picks joined to the shared pool, in the AI's order; ids the pool doesn't have are dropped.
+export function newsRows(ai: IndexAi | null | undefined, pool: NewsPool): NewsRow[] {
+  const byId = new Map((pool?.items || []).map((i) => [i.id, i]));
+  return (ai?.news || []).flatMap((p) => {
+    const it = byId.get(p.id);
+    return it ? [{ ...it, impact: p.impact, why: p.why }] : [];
+  });
+}
+
+// legacy = a snapshot from before v2.10.0 (no pool); failed = every search failed.
+export function newsState(pool: NewsPool, ai: IndexAi | null | undefined): 'legacy' | 'failed' | 'empty' | 'rows' {
+  if (!pool) return 'legacy';
+  if (pool.error) return 'failed';
+  return newsRows(ai, pool).length ? 'rows' : 'empty';
+}
+
+// Age at viewing time (a snapshot can be days old); the stored age is the fallback for undated items.
+export function newsAge(item: IndexNewsItem, now: number = Date.now()): string | null {
+  const t = item.time ? Date.parse(item.time) : NaN;
+  if (Number.isNaN(t)) return item.age ?? null;
+  const h = Math.floor((now - t) / (60 * 60 * 1000));
+  if (h < 1) return 'just now';
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+export function impactMark(impact?: string): '▲' | '▼' | '•' {
+  return impact === 'bull' ? '▲' : impact === 'bear' ? '▼' : '•';
+}
+
+const LIKELY_SIDE: Record<IndexLikely['side'], [string, string]> = {
+  bull: ['🐂', 'Bull'],
+  bear: ['🐻', 'Bear'],
+  range: ['↔', 'Range'],
+};
+const LIKELY_CONF: Record<IndexLikely['confidence'], string> = { low: 'Low', medium: 'Medium', high: 'High' };
+
+export function likelyLabel(l: IndexLikely | null | undefined): string | null {
+  const side = l && LIKELY_SIDE[l.side];
+  if (!side) return null;
+  return `${side[0]} ${side[1]} · ${LIKELY_CONF[l.confidence] ?? 'Low'}`;
+}
+
+export function likelyMark(l: IndexLikely | null | undefined): string | null {
+  return (l && LIKELY_SIDE[l.side]?.[0]) ?? null;
+}
+
+export function rangeBetween(zones: IndexZone[]): string | null {
+  const sup = zones.filter((z) => z.role === 'support').sort((a, b) => b.hi - a.hi)[0];
+  const res = zones.filter((z) => z.role === 'resistance').sort((a, b) => a.lo - b.lo)[0];
+  return sup && res ? `between ${sup.id} and ${res.id}` : null;
 }

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   toneClass, zoneDots, fmtLevel, zoneRange, distText, sourceLabel, isLegacy, scenarioMarks, costText, pickTab,
+  newsRows, newsState, newsAge, impactMark, likelyLabel, likelyMark, rangeBetween,
 } from '../src/lib/indices.ts';
 
 const z = (id: string, lo: number, hi: number, role: string, dist_pct = 0, dist_atr = 0) =>
@@ -70,4 +71,65 @@ test('pickTab', () => {
   assert.equal(pickTab('EGX999', ['EGX30', 'EGX70']), 'EGX30');
   assert.equal(pickTab(null, ['EGX30']), 'EGX30');
   assert.equal(pickTab(null, []), null);
+});
+
+const POOL = {
+  items: [
+    { id: 'N1', headline: 'Egypt stocks slump', source: 'Reuters', age: '1d', time: '2026-10-17T12:00:00Z', url: 'https://news.example/1' },
+    { id: 'N2', headline: 'Undated, unlinked item', source: null, age: null, time: null, url: null },
+  ],
+  error: null,
+};
+
+test('newsRows joins picks to the pool and drops ids it does not have', () => {
+  const ai = { news: [{ id: 'N2', impact: 'neutral', why: 'b' }, { id: 'N9', impact: 'bull', why: 'gone' }, { id: 'N1', impact: 'bear', why: 'a' }] } as any;
+  const rows = newsRows(ai, POOL);
+  assert.deepEqual(rows.map((r) => [r.id, r.impact, r.why]), [['N2', 'neutral', 'b'], ['N1', 'bear', 'a']]);
+  assert.equal(rows[0].url, null);
+  assert.deepEqual(newsRows(null, POOL), []);
+  assert.deepEqual(newsRows(ai, null), []);
+});
+
+test('newsState', () => {
+  const ai = { news: [{ id: 'N1', impact: 'bear', why: 'a' }] } as any;
+  assert.equal(newsState(undefined, ai), 'legacy');
+  assert.equal(newsState(null, ai), 'legacy');
+  assert.equal(newsState({ items: [], error: 'news lookup failed' }, ai), 'failed');
+  assert.equal(newsState(POOL, { news: [] } as any), 'empty');
+  assert.equal(newsState(POOL, null), 'empty');
+  assert.equal(newsState(POOL, ai), 'rows');
+});
+
+test('newsAge is computed when viewed, with the stored age as fallback', () => {
+  const now = Date.parse('2026-10-20T12:00:00Z');
+  assert.equal(newsAge(POOL.items[0], now), '3d');
+  assert.equal(newsAge({ ...POOL.items[0], time: '2026-10-20T07:00:00Z' }, now), '5h');
+  assert.equal(newsAge({ ...POOL.items[0], time: '2026-10-20T11:30:00Z' }, now), 'just now');
+  assert.equal(newsAge({ ...POOL.items[0], time: null }, now), '1d');
+  assert.equal(newsAge(POOL.items[1], now), null);
+});
+
+test('impactMark', () => {
+  assert.equal(impactMark('bull'), '▲');
+  assert.equal(impactMark('bear'), '▼');
+  assert.equal(impactMark('neutral'), '•');
+  assert.equal(impactMark('weird'), '•');
+});
+
+test('likelyLabel and likelyMark', () => {
+  assert.equal(likelyLabel({ side: 'bear', confidence: 'medium', reasons: [] }), '🐻 Bear · Medium');
+  assert.equal(likelyLabel({ side: 'bull', confidence: 'high', reasons: [] }), '🐂 Bull · High');
+  assert.equal(likelyLabel({ side: 'range', confidence: 'low', reasons: [] }), '↔ Range · Low');
+  assert.equal(likelyLabel(null), null);
+  assert.equal(likelyLabel(undefined), null);
+  assert.equal(likelyMark({ side: 'range', confidence: 'low', reasons: [] }), '↔');
+  assert.equal(likelyMark({ side: 'bear', confidence: 'low', reasons: [] }), '🐻');
+  assert.equal(likelyMark(null), null);
+});
+
+test('rangeBetween names the nearest support and resistance', () => {
+  const zones = [z('Z1', 1200, 1200, 'resistance'), z('Z2', 1100, 1100, 'resistance'), z('Z3', 900, 940, 'support'), z('Z4', 700, 700, 'support')];
+  assert.equal(rangeBetween(zones), 'between Z3 and Z2');
+  assert.equal(rangeBetween([z('Z1', 1200, 1200, 'resistance')]), null);
+  assert.equal(rangeBetween([]), null);
 });

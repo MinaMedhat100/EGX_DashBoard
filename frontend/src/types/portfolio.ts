@@ -339,6 +339,25 @@ export interface IndexScenario {
   off_zone: boolean;
 }
 
+export interface IndexNewsItem {
+  id: string;
+  headline: string;
+  source: string | null;
+  age: string | null; // relative age when the snapshot was built; the page recomputes from `time`
+  time: string | null;
+  url: string | null;
+}
+
+export interface IndexNewsPick { id: string; impact: IndexTone; why: string; }
+
+export interface IndexLikely {
+  side: 'bull' | 'bear' | 'range';
+  confidence: 'low' | 'medium' | 'high';
+  reasons: string[];
+}
+
+export type NewsPool = { items: IndexNewsItem[]; error: string | null } | null | undefined;
+
 export interface IndexAi {
   index: string;
   regime: string;
@@ -350,6 +369,8 @@ export interface IndexAi {
   zones?: { id: string; note: string }[];
   scenarios?: { bull: IndexScenario | null; bear: IndexScenario | null };
   for_me?: { new_entries: string; open_positions: string; watch: string } | null;
+  news?: IndexNewsPick[];
+  likely?: IndexLikely | null;
   key_support?: number | null;
   key_resistance?: number | null;
 }
@@ -396,6 +417,7 @@ export interface IndexSnapshot {
   indices: IndexData[];
   cost_usd?: number | null;
   ai_error?: string | null;
+  news?: { items: IndexNewsItem[]; error: string | null };
 }
 
 export interface GoldAi {
