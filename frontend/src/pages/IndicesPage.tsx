@@ -76,7 +76,7 @@ export function IndicesPage() {
               <IndexTile key={d.index} d={d} active={d.index === tab} onSelect={() => select(d.index)} />
             ))}
           </div>
-          {selected && <IndexDetail d={selected} />}
+          {selected && <IndexDetail d={selected} pool={snap.news} />}
         </>
       )}
     </div>

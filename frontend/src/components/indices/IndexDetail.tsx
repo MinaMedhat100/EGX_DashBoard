@@ -1,18 +1,18 @@
 import { useState } from 'react';
-import type { IndexData } from '../../types/portfolio';
+import type { IndexData, NewsPool } from '../../types/portfolio';
 import { GlowCard } from '../common/GlowCard';
 import { fmtPct } from '../../lib/format';
 import { ZoneLadder } from './ZoneLadder';
 import { IndexSections } from './IndexSections';
 
-export function IndexDetail({ d }: { d: IndexData }) {
+export function IndexDetail({ d, pool }: { d: IndexData; pool?: NewsPool }) {
   const [open, setOpen] = useState(false);
   return (
     <GlowCard className="p-4">
       {d.ai?.headline && <div className="text-sm font-semibold mb-3">{d.index}: {d.ai.headline}</div>}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-4">
         <ZoneLadder d={d} />
-        <IndexSections d={d} />
+        <IndexSections d={d} pool={pool} />
       </div>
 
       <button onClick={() => setOpen((o) => !o)} className="mt-3 text-[11px] text-accent-cyan">
