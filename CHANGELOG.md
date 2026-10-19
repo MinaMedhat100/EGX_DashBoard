@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.10.0
+
+**Each index tab now shows the news behind the move and which scenario is more likely.** On each
+refresh the board runs five free Google News searches covering the stock market, the central bank,
+the pound and the IMF/economy. It keeps up to 12 headlines from the last 14 days in one shared,
+numbered pool. Searches by index name return years-old articles for EGX70/100, so the pool is
+market-wide, and the AI decides which headlines matter for each index: blue chips and banks hit
+EGX30 differently from small caps. Each tab's new **📰 News & catalysts** block lists up to four
+headlines with a ▲ / ▼ / • impact and a one-line reason, linked to the article. The AI can only
+cite headlines from the pool, and if every search fails the page says so instead of treating it as
+a quiet day. The Scenarios block now opens with **Likely: Bull, Bear or Range** and a Low / Medium /
+High confidence, based on the zone scores and distances, trend, breadth and the news, with the
+reasons listed. The likely card is starred and the tile shows a small "likely" chip. It is still
+one AI call per refresh.
+
 ## 2.9.0
 
 **The Indices page now shows every support and resistance zone and a structured read.** Each index

@@ -41,8 +41,9 @@ traded automatically, and the AI never changes a level on its own: it proposes, 
 - EGX30 / 70 / 100 as tabs.
 - Each one has a ladder of support/resistance zones built in code from daily and weekly levels
   (pivots, EMAs, SMAs, Bollinger bands, day/week range), merged and scored by agreement.
-- Each one has a sectioned AI read: trend & momentum, breadth & sectors, bull/bear scenarios tied to
-  the zones, and what it means for new entries and open positions.
+- Each one has a sectioned AI read: trend & momentum, breadth & sectors, news & catalysts (picked
+  from a shared pool of recent market and macro headlines), bull/bear scenarios tied to the zones
+  with the most likely one marked, and what it means for new entries and open positions.
 - The overall regime read (Risk-On / Neutral / Risk-Off) feeds the other analyses.
 
 **Goldx** — a gold swing tracker (PAXG as the spot-gold proxy, USD/oz, with USD/EGP, DXY and the US
