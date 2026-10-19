@@ -111,7 +111,7 @@ test('analyzeIndices runs one isolated call and returns its cost', async () => {
 test('buildIndicesSnapshot keeps the zones when the AI fails', async () => {
   const analyze = async () => { throw new Error('usage limit'); };
   const now = () => new Date('2026-10-14T10:00:00Z');
-  const s = await buildIndicesSnapshot([IDX], 'm', { analyze, now });
+  const s = await buildIndicesSnapshot([IDX], 'm', { analyze, now, getNews: async () => ({ items: [], error: null }) });
   assert.equal(s.timestamp, '2026-10-14T10:00:00.000Z');
   assert.equal(s.indices[0].ai, null);
   assert.equal(s.indices[0].zones.length, 4);
@@ -122,8 +122,90 @@ test('buildIndicesSnapshot keeps the zones when the AI fails', async () => {
 
 test('buildIndicesSnapshot on success', async () => {
   const analyze = async (indices) => ({ indices: indices.map((x) => ({ ...x, ai: { regime: 'Neutral' } })), overall: { regime: 'Neutral', summary: '' }, cost_usd: 0.1 });
-  const s = await buildIndicesSnapshot([IDX], 'm', { analyze, now: () => new Date(0) });
+  const s = await buildIndicesSnapshot([IDX], 'm', { analyze, now: () => new Date(0), getNews: async () => ({ items: [], error: null }) });
   assert.equal(s.cost_usd, 0.1);
   assert.equal(s.ai_error, null);
   assert.equal(s.indices[0].zones.length, 4);
+});
+
+const POOL = {
+  items: [
+    { id: 'N1', headline: 'Egypt stocks slump on regional jitters', source: 'Reuters', age: '1d', time: null, url: null },
+    { id: 'N2', headline: 'Pound weakens past a new low against the dollar', source: 'Ahram', age: '4d', time: null, url: null },
+  ],
+  error: null,
+};
+const NEWS_IDS = new Set(['N1', 'N2']);
+
+test('indicesPrompt carries the news pool and the likely rules', () => {
+  const p = indicesPrompt(withZones([IDX]), '', POOL);
+  assert.match(p, /"id": "N1"/);
+  assert.match(p, /regional jitters/);
+  assert.match(p, /"likely"/);
+  assert.match(p, /"range"/);
+  const failed = indicesPrompt(withZones([IDX]), '', { items: [], error: 'news lookup failed' });
+  assert.match(failed, /lookup FAILED/);
+  assert.doesNotMatch(failed, /"id": "N1"/);
+  assert.match(indicesPrompt(withZones([IDX]), ''), /NEWS POOL/); // default: empty pool, no crash
+});
+
+test('validateIndexAi: news picks are checked against the pool', () => {
+  const v = validateIndexAi({ news: [
+    { id: 'N1', impact: 'bear', why: 'risk-off across the board' },
+    { id: 'N9', impact: 'bull', why: 'not in the pool' },
+    { id: 'N1', impact: 'bull', why: 'duplicate' },
+    { id: 'N2', impact: 'sideways', why: 'weaker pound' },
+    { id: 'N2' },
+  ] }, zones, 100, NEWS_IDS);
+  assert.deepEqual(v.news, [
+    { id: 'N1', impact: 'bear', why: 'risk-off across the board' },
+    { id: 'N2', impact: 'neutral', why: 'weaker pound' },
+  ]);
+  assert.deepEqual(validateIndexAi({}, zones, 100).news, []);
+  assert.deepEqual(validateIndexAi({ news: 'N1' }, zones, 100, NEWS_IDS).news, []);
+});
+
+test('validateIndexAi: at most 4 news picks', () => {
+  const ids = new Set(['N1', 'N2', 'N3', 'N4', 'N5', 'N6']);
+  const v = validateIndexAi({ news: [...ids].map((id) => ({ id, impact: 'bull', why: 'x' })) }, zones, 100, ids);
+  assert.deepEqual(v.news.map((n) => n.id), ['N1', 'N2', 'N3', 'N4']);
+});
+
+test('validateIndexAi: likely', () => {
+  assert.deepEqual(
+    validateIndexAi({ likely: { side: 'bear', confidence: 'medium', reasons: ['breadth 10%', 7, 'N1 risk-off', 'a', 'b'] } }, zones, 100).likely,
+    { side: 'bear', confidence: 'medium', reasons: ['breadth 10%', 'N1 risk-off', 'a'] },
+  );
+  assert.equal(validateIndexAi({ likely: { side: 'up', confidence: 'high' } }, zones, 100).likely, null);
+  assert.equal(validateIndexAi({ likely: 'bear' }, zones, 100).likely, null);
+  assert.equal(validateIndexAi({}, zones, 100).likely, null);
+  const r = validateIndexAi({ likely: { side: 'range', confidence: 'certain' } }, zones, 100).likely;
+  assert.deepEqual(r, { side: 'range', confidence: 'low', reasons: [] });
+});
+
+test('analyzeIndices sends the pool and validates the picks against it', async () => {
+  let prompt;
+  const run = async (p) => {
+    prompt = p;
+    return { text: JSON.stringify({ indices: [{ index: 'EGX30', news: [{ id: 'N2', impact: 'bear', why: 'weaker pound' }, { id: 'N7', impact: 'bear', why: 'x' }] }], overall: null }), cost_usd: 0.2 };
+  };
+  const out = await analyzeIndices(withZones([IDX]), 'm', { run, strategy: '', news: POOL });
+  assert.match(prompt, /Pound weakens/);
+  assert.deepEqual(out.indices[0].ai.news, [{ id: 'N2', impact: 'bear', why: 'weaker pound' }]);
+});
+
+test('buildIndicesSnapshot stores the pool and hands it to analyze', async () => {
+  let seen;
+  const analyze = async (indices, model, opts) => { seen = opts; return { indices: indices.map((x) => ({ ...x, ai: null })), overall: null, cost_usd: 0.1 }; };
+  const s = await buildIndicesSnapshot([IDX], 'm', { analyze, now: () => new Date(0), getNews: async () => POOL });
+  assert.deepEqual(seen, { news: POOL });
+  assert.deepEqual(s.news, POOL);
+});
+
+test('buildIndicesSnapshot survives a throwing news lookup', async () => {
+  let seen;
+  const analyze = async (indices, model, opts) => { seen = opts; return { indices: indices.map((x) => ({ ...x, ai: null })), overall: null, cost_usd: null }; };
+  const s = await buildIndicesSnapshot([IDX], 'm', { analyze, now: () => new Date(0), getNews: async () => { throw new Error('offline'); } });
+  assert.deepEqual(s.news, { items: [], error: 'news lookup failed' });
+  assert.deepEqual(seen.news, { items: [], error: 'news lookup failed' });
 });

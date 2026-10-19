@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildZones, nearestZone, zoneGap, ZONE_MERGE_ATR } from './zoneService.js';
+import { indexNews } from './aiContext.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STRATEGY_FILE = path.join(__dirname, '..', '..', 'STRATEGY.md');
@@ -403,7 +404,7 @@ const zoneForPrompt = (z) => ({
   sources: z.sources.map((s) => `${s.name} ${s.tf}`),
 });
 
-export function indicesPrompt(indices, strategy) {
+export function indicesPrompt(indices, strategy, news = { items: [], error: null }) {
   const slim = indices.map((x) => ({
     index: x.index, level: x.level, change_pct: x.change_pct,
     indicators: x.indicators, mtf: x.mtf, stats: x.stats, sectors: x.sectors,
@@ -424,6 +425,18 @@ export function indicesPrompt(indices, strategy) {
     'every scenario level and target must sit in or next to one of these zones. weekly_ok false means the',
     'weekly levels could not be fetched — say so instead of guessing weekly structure.',
     '',
+    '=== NEWS POOL (market + macro headlines, newest first) ===',
+    news?.error
+      ? 'The news lookup FAILED: there is no news below. Absence of headlines is NOT evidence of quiet news; say "news unavailable" where it matters.'
+      : JSON.stringify((news?.items || []).map(({ id, headline, source, age }) => ({ id, headline, source, age })), null, 1),
+    '',
+    'NEWS rules: cite only pool ids (N1…). For each index pick the 0-4 headlines that matter for THAT index and',
+    'say how they hit it (blue chips and banks in EGX30 vs small and mid caps in EGX70/EGX100). A headline older',
+    'than about 3 sessions is already in the price: it can explain the move, not drive the next one.',
+    'LIKELY: weigh zone scores and distances, trend/momentum, breadth and the news, and say which scenario is',
+    'more likely next: "bull", "bear", or "range" when price is more likely to stay between the nearest support',
+    'and resistance zones. Confidence low|medium|high; conflicting signals mean low.',
+    '',
     'For EACH index output one object. Respond with ONLY this JSON:',
     '{"indices":[{',
     '  "index": "EGX30",',
@@ -441,6 +454,8 @@ export function indicesPrompt(indices, strategy) {
     '  },',
     '  "for_me": {"new_entries": "what this means for opening swing longs", "open_positions": "what it means for',
     '             open positions and their stops", "watch": "the one signal to watch next"},',
+    '  "news": [ {"id": "N3", "impact": "bull|bear|neutral", "why": "one line: how it hits this index"} ],',
+    '  "likely": {"side": "bull|bear|range", "confidence": "low|medium|high", "reasons": ["2-3 short lines citing zones, breadth, momentum, news ids"]},',
     '  "key_support": number, "key_resistance": number',
     '}],',
     '"overall": { "regime": "Risk-On|Neutral|Risk-Off", "summary": "one line on overall EGX posture" }}',
@@ -473,7 +488,33 @@ function validScenario(s, zones, atr) {
   };
 }
 
-export function validateIndexAi(ai, zones = [], atr = null) {
+const LIKELY_SIDES = ['bull', 'bear', 'range'];
+const CONFIDENCES = ['low', 'medium', 'high'];
+const NEWS_PICKS_MAX = 4;
+
+function validNews(list, newsIds) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const n of list) {
+    if (!n || !newsIds.has(n.id) || seen.has(n.id) || typeof n.why !== 'string') continue;
+    seen.add(n.id);
+    out.push({ id: n.id, impact: toneOr(n.impact), why: n.why });
+    if (out.length >= NEWS_PICKS_MAX) break;
+  }
+  return out;
+}
+
+function validLikely(l) {
+  if (!l || typeof l !== 'object' || !LIKELY_SIDES.includes(l.side)) return null;
+  return {
+    side: l.side,
+    confidence: CONFIDENCES.includes(l.confidence) ? l.confidence : 'low',
+    reasons: strList(l.reasons, 3),
+  };
+}
+
+export function validateIndexAi(ai, zones = [], atr = null, newsIds = new Set()) {
   if (!ai || typeof ai !== 'object' || Array.isArray(ai)) return null;
   const ids = new Set(zones.map((z) => z.id));
   const thesis = sOr(ai.thesis);
@@ -501,36 +542,45 @@ export function validateIndexAi(ai, zones = [], atr = null) {
       bear: validScenario(ai.scenarios?.bear, zones, atr),
     },
     for_me: f ? { new_entries: sOr(f.new_entries), open_positions: sOr(f.open_positions), watch: sOr(f.watch) } : null,
+    news: validNews(ai.news, newsIds),
+    likely: validLikely(ai.likely),
     key_support: nOr(ai.key_support) ?? nearestZone(zones, 'support')?.mid ?? null,
     key_resistance: nOr(ai.key_resistance) ?? nearestZone(zones, 'resistance')?.mid ?? null,
   };
 }
 
-export function mergeIndexAi(indices, ai) {
+export function mergeIndexAi(indices, ai, newsIds = new Set()) {
   const byName = {};
   for (const a of (ai?.indices || [])) if (a && a.index) byName[a.index] = a;
   return {
     indices: indices.map((x) => ({
       ...x,
-      ai: byName[x.index] ? validateIndexAi(byName[x.index], x.zones || [], x.indicators?.atr) : null,
+      ai: byName[x.index] ? validateIndexAi(byName[x.index], x.zones || [], x.indicators?.atr, newsIds) : null,
     })),
     overall: ai?.overall || null,
   };
 }
 
-export async function analyzeIndices(indices, model = DEFAULT_MODEL, { run = runClaude, strategy } = {}) {
+export async function analyzeIndices(indices, model = DEFAULT_MODEL, { run = runClaude, strategy, news = { items: [], error: null } } = {}) {
   const s = strategy ?? await strategyText();
-  const { text, cost_usd } = await run(indicesPrompt(indices, s), model,
+  const { text, cost_usd } = await run(indicesPrompt(indices, s, news), model,
     { isolated: true, systemPrompt: INDICES_SYSTEM, envelope: true });
-  return { ...mergeIndexAi(indices, extractJson(text)), cost_usd };
+  const newsIds = new Set((news?.items || []).map((i) => i.id));
+  return { ...mergeIndexAi(indices, extractJson(text), newsIds), cost_usd };
 }
 
-export async function buildIndicesSnapshot(indices, model, { analyze = analyzeIndices, now = () => new Date() } = {}) {
+export async function buildIndicesSnapshot(indices, model, { analyze = analyzeIndices, now = () => new Date(), getNews = indexNews } = {}) {
   const zoned = withZones(indices);
+  let news;
+  try {
+    news = await getNews();
+  } catch {
+    news = { items: [], error: 'news lookup failed' }; // best-effort: the read goes ahead without news
+  }
   let merged = { indices: zoned.map((x) => ({ ...x, ai: null })), overall: null, cost_usd: null };
   let ai_error = null;
   try {
-    merged = await analyze(zoned, model);
+    merged = await analyze(zoned, model, { news });
   } catch (e) {
     ai_error = e.message; // AI unavailable: keep the data and the zones
   }
@@ -540,6 +590,7 @@ export async function buildIndicesSnapshot(indices, model, { analyze = analyzeIn
     overall: merged.overall,
     cost_usd: merged.cost_usd ?? null,
     ai_error,
+    news,
     indices: merged.indices,
   };
 }
