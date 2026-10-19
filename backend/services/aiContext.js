@@ -1,5 +1,5 @@
 // aiContext.js — best-effort gathering of AI decision context (news + regime). Never throws.
-import { getNews, getNewsResult, newsForQuery } from './newsService.js';
+import { getNews, getNewsResult, newsForQuery, newsForQueryResult } from './newsService.js';
 import * as indicesStore from './indicesStore.js';
 
 export const REGIME_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000; // regime older than 2 days -> "unknown"
@@ -60,6 +60,55 @@ export async function gatherNews(tickers, fetch = getNews, now = Date.now()) {
 
 export async function goldMacroNews(fetch = newsForQuery, now = Date.now()) {
   try { return compact(await fetch('gold price forecast Fed dollar DXY'), now); } catch { return []; }
+}
+
+// ── Indices news pool (v2.10.0) ──────────────────────────────────────────────
+// Index-name searches return years-old articles for EGX70/100 (probe, Oct 2026); market-wide and macro
+// searches return fresh ones. One shared pool; the AI decides which headlines matter for which index.
+export const INDEX_NEWS_QUERIES = [
+  'Egyptian stock exchange EGX',
+  'EGX30 Egyptian Exchange',
+  'Egypt central bank interest rate',
+  'Egyptian pound dollar',
+  'Egypt economy IMF',
+];
+export const INDEX_NEWS_MAX_AGE_DAYS = 14;
+export const INDEX_NEWS_CAP = 12;
+
+export async function indexNews(fetch = newsForQueryResult, now = Date.now()) {
+  const maxAge = INDEX_NEWS_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const results = await Promise.all(INDEX_NEWS_QUERIES.map(async (q) => {
+    try {
+      const r = await fetch(q);
+      return r && !r.error ? (r.items || []) : null; // null = this query failed
+    } catch {
+      return null;
+    }
+  }));
+  if (results.every((r) => r === null)) return { items: [], error: 'news lookup failed' };
+
+  const seen = new Set();
+  const kept = [];
+  for (const it of results.filter(Boolean).flat()) {
+    const key = (it?.headline || '').toLowerCase().slice(0, 60);
+    if (!key || seen.has(key)) continue;
+    const t = it.time ? Date.parse(it.time) : NaN;
+    if (!Number.isNaN(t) && now - t > maxAge) continue;
+    seen.add(key);
+    kept.push({ it, t });
+  }
+  kept.sort((a, b) => (Number.isNaN(b.t) ? -Infinity : b.t) - (Number.isNaN(a.t) ? -Infinity : a.t));
+  return {
+    items: kept.slice(0, INDEX_NEWS_CAP).map(({ it }, i) => ({
+      id: `N${i + 1}`,
+      headline: it.headline,
+      source: (it.source || '').replace(/^google:/, '') || null,
+      age: relAge(it.time, now),
+      time: it.time ?? null,
+      url: it.url ?? null,
+    })),
+    error: null,
+  };
 }
 
 export async function latestRegime(load = indicesStore.load, now = Date.now()) {

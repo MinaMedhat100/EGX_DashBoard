@@ -86,6 +86,11 @@ export async function newsForQuery(query) {
   return (await fetchQuery(query)).items;
 }
 
+// Same search, but keeps the error so a caller can tell "lookup failed" from "nothing found".
+export async function newsForQueryResult(query) {
+  return fetchQuery(query);
+}
+
 export async function getNewsResult(ticker) {
   const key = (ticker || '').toUpperCase();
   const name = EGX_NAMES[key];
