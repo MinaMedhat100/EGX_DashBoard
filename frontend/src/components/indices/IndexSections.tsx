@@ -59,7 +59,6 @@ function NewsBlock({ ai, pool }: { ai: IndexAi; pool: NewsPool }) {
         <ul className="space-y-1.5">
           {newsRows(ai, pool).map((r) => {
             const age = newsAge(r);
-            const meta = [r.source, age].filter(Boolean).join(' · ');
             return (
               <li key={r.id}>
                 <div className="flex items-baseline gap-2">
@@ -69,7 +68,14 @@ function NewsBlock({ ai, pool }: { ai: IndexAi; pool: NewsPool }) {
                     : <span className="text-txt-primary">{r.headline}</span>}
                 </div>
                 <div className="ml-7 text-txt-secondary">
-                  {meta && <span className="text-[10px] mr-2">{meta}</span>}
+                  {(r.source || age) && (
+                    // <bdi>: an Arabic (right-to-left) source name must not reorder the age next to it
+                    <span className="text-[10px] mr-2">
+                      {r.source && <bdi>{r.source}</bdi>}
+                      {r.source && age && ' · '}
+                      {age}
+                    </span>
+                  )}
                   <span className="text-txt-primary/80">{r.why}</span>
                 </div>
               </li>
