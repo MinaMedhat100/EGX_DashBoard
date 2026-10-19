@@ -133,3 +133,13 @@ test('rangeBetween names the nearest support and resistance', () => {
   assert.equal(rangeBetween([z('Z1', 1200, 1200, 'resistance')]), null);
   assert.equal(rangeBetween([]), null);
 });
+
+test('newsRows only keeps http(s) links', () => {
+  const pool = { items: [
+    { id: 'N1', headline: 'a', source: null, age: null, time: null, url: 'javascript:alert(1)' },
+    { id: 'N2', headline: 'b', source: null, age: null, time: null, url: 'HTTPS://news.example/b' },
+    { id: 'N3', headline: 'c', source: null, age: null, time: null, url: 'data:text/html,x' },
+  ], error: null };
+  const ai = { news: ['N1', 'N2', 'N3'].map((id) => ({ id, impact: 'neutral', why: 'x' })) } as any;
+  assert.deepEqual(newsRows(ai, pool).map((r) => r.url), [null, 'HTTPS://news.example/b', null]);
+});

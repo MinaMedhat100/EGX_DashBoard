@@ -69,12 +69,15 @@ export function pickTab(saved: string | null, names: string[]): string | null {
 // ── News & likely scenario (v2.10.0) ────────────────────────────────────────
 export interface NewsRow extends IndexNewsItem { impact: IndexTone; why: string; }
 
+// Links come from an outside RSS feed: only http(s) becomes a link, anything else renders as plain text.
+const safeUrl = (u: string | null) => (u && /^https?:\/\//i.test(u) ? u : null);
+
 // The AI's picks joined to the shared pool, in the AI's order; ids the pool doesn't have are dropped.
 export function newsRows(ai: IndexAi | null | undefined, pool: NewsPool): NewsRow[] {
   const byId = new Map((pool?.items || []).map((i) => [i.id, i]));
   return (ai?.news || []).flatMap((p) => {
     const it = byId.get(p.id);
-    return it ? [{ ...it, impact: p.impact, why: p.why }] : [];
+    return it ? [{ ...it, url: safeUrl(it.url), impact: p.impact, why: p.why }] : [];
   });
 }
 
