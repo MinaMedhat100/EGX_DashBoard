@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test test/**/*.test.js"
+    "test": "node --test test/**/*.test.js",
+    "esthmr:login": "node scripts/esthmr-login.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
