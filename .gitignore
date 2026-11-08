@@ -32,3 +32,5 @@ backend/data/gold_state.json
 backend/data/journal.json
 backend/data/bars_cache.json
 backend/data/*.tmp
+backend/data/esthmr_auth.json
+backend/data/esthmr_ab/
