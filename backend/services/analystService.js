@@ -413,6 +413,7 @@ const EXTRAS_RULES = [
   'Flows (EGP millions of net buying) show who traded, not why. Call outlier sessions likely block deals and partial sessions incomplete; never read a trend from one of them.',
   "Breadth here is the WHOLE market; each index's own breadth is its stats above. Do not mix the two.",
   'An event date is a risk window, not a direction.',
+  'Each macro move and egx30_usd names the session it closes on (as_of / session); quote that date with the figure, e.g. "+3.1% in the week to 2026-11-05".',
   'Zone sources named "Swing high/low <date>" and "Year high/low" are real turning points from the index\'s own bars; structure lists the latest ones, oldest first.',
   'Use the extras inside the existing sections (trend_momentum, breadth, zones notes, scenarios, likely, for_me); the JSON shape below does not change.',
   '',
