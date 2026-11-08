@@ -82,6 +82,15 @@ test('swing levels join the zones with the existing weights', () => {
   assert.deepEqual(withZones(FIXTURE_INDICES, EXTRAS)[1], withZones(FIXTURE_INDICES)[1]);
 });
 
+test('swing levels between two zones never join them into one (A/B run 2: EGX30 block 3.3 ATR wide)', () => {
+  // Fixture EGX30: EMA50 1100 and Pivot R1 1200 are 1 ATR apart, so two zones. Swings at 1140 and 1160 sit between.
+  const x = { ...EXTRAS, parts: { ...EXTRAS.parts, history: { EGX30: { levels: [
+    { name: 'Swing high 21 Oct', tf: 'D', value: 1140 }, { name: 'Swing low 30 Jul', tf: 'D', value: 1160 },
+  ], structure: STRUCT } } } };
+  const res = withZones(FIXTURE_INDICES, x)[0].zones.filter((z) => z.role === 'resistance');
+  assert.deepEqual(res.map((z) => [z.lo, z.hi]), [[1160, 1200], [1100, 1140]]);
+});
+
 const analyzeStub = (seen) => async (indices, model, opts) => {
   seen.push(opts);
   return { indices: indices.map((x) => ({ ...x, ai: null })), overall: null, cost_usd: 0.1 };

@@ -111,14 +111,15 @@ export function macroDigest(sc) {
   const usd = fin(list(sc.currencies).find((c) => c?.code === 'USD')?.egp);
   const moves = list(sc.moves)
     .filter((m) => obj(m) && MOVE_IDS.includes(m.id))
-    .map((m) => ({ index: m.id, week: move(m.week), month: move(m.month), quarter: move(m.quarter) }));
+    // as_of: the session the moves close on; ESTHMR can lag the live session, so the date travels with them
+    .map((m) => ({ index: m.id, as_of: isDate(m.date) ? m.date : null, week: move(m.week), month: move(m.month), quarter: move(m.quarter) }));
   if (!cbe && usd == null && !moves.length) return null;
   const e = obj(sc.egx30Usd);
   return {
     as_of: isDate(sc.asOf) ? sc.asOf : null,
     cbe,
     usd_egp: usd,
-    egx30_usd: e ? { level: fin(e.level), change_pct: fin(e.changePct), ytd_pct: fin(e.ytdPct) } : null,
+    egx30_usd: e ? { session: isDate(e.session) ? e.session : null, level: fin(e.level), change_pct: fin(e.changePct), ytd_pct: fin(e.ytdPct) } : null,
     brent_usd: fin(list(sc.series).find((s) => s?.id === 'brent')?.latest),
     gold_usd_oz: fin(list(sc.metals).find((m) => m?.id === 'XAU')?.usdOunce),
     moves,

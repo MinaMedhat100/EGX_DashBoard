@@ -14,22 +14,58 @@ export function zoneGap(value, zone) {
   return 0;
 }
 
-export function buildZones(levels, price, atr) {
-  if (!(price > 0) || !(atr > 0)) return [];
-  const sorted = (levels || [])
-    .filter((l) => l && Number.isFinite(l.value) && l.value > 0)
-    .sort((a, b) => a.value - b.value);
+const usable = (ls) => (ls || []).filter((l) => l && Number.isFinite(l.value) && l.value > 0);
+const byValue = (a, b) => a.value - b.value;
 
+// Neighbouring levels (sorted) within the merge distance form one group.
+function chain(sorted, tol) {
   const groups = [];
   for (const l of sorted) {
     const g = groups[groups.length - 1];
-    if (g && l.value - g.hi <= ZONE_MERGE_ATR * atr + 1e-9) {
+    if (g && l.value - g.hi <= tol) {
       g.sources.push(l);
       g.hi = l.value;
     } else {
       groups.push({ lo: l.value, hi: l.value, sources: [l] });
     }
   }
+  return groups;
+}
+
+// One turning point seen on both daily and weekly bars (or as the year high) is one level: keep the weekly copy.
+function onePerPoint(levels) {
+  const byPoint = new Map();
+  for (const l of levels) {
+    const key = r2(l.value);
+    const had = byPoint.get(key);
+    if (!had || (had.tf !== 'W' && l.tf === 'W')) byPoint.set(key, l);
+  }
+  return [...byPoint.values()];
+}
+
+// extra (v2.11.0, ESTHMR swing levels) is added after the zones are built: a level within the merge distance of a
+// zone joins the nearest one, the rest form zones of their own. So extra levels never join two zones into one.
+export function buildZones(levels, price, atr, extra = []) {
+  if (!(price > 0) || !(atr > 0)) return [];
+  const tol = ZONE_MERGE_ATR * atr + 1e-9;
+  const groups = chain(usable(levels).sort(byValue), tol);
+
+  const edges = groups.map(({ lo, hi }) => ({ lo, hi }));
+  const loose = [];
+  for (const l of onePerPoint(usable(extra))) {
+    let best = -1;
+    edges.forEach((e, i) => {
+      const gap = zoneGap(l.value, e);
+      if (gap <= tol && (best < 0 || gap < zoneGap(l.value, edges[best]))) best = i;
+    });
+    if (best < 0) { loose.push(l); continue; }
+    const g = groups[best];
+    g.sources.push(l);
+    g.lo = Math.min(g.lo, l.value);
+    g.hi = Math.max(g.hi, l.value);
+  }
+  for (const g of groups) g.sources.sort(byValue);
+  groups.push(...chain(loose.sort(byValue), tol));
 
   const zones = groups.map((g) => {
     const score = g.sources.reduce((s, x) => s + (x.tf === 'W' ? WEEKLY_WEIGHT : 1), 0);

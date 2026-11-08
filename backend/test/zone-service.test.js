@@ -80,3 +80,36 @@ test('nearestZone and zoneGap', () => {
   assert.equal(zoneGap(90, zone), 10);
   assert.equal(zoneGap(230, zone), 30);
 });
+
+// v2.11.0 fix: extra levels (ESTHMR swings) are added after the zones are built, so they never chain two zones together.
+test('extra levels attach to the nearest zone within ZONE_MERGE_ATR and never join two zones', () => {
+  const z = buildZones([D('A', 800), D('B', 900)], 1000, 100, [D('Swing low 1', 840), D('Swing low 2', 860)]);
+  assert.deepEqual(z.map((x) => [x.lo, x.hi, x.sources.map((s) => s.name)]), [
+    [860, 900, ['Swing low 2', 'B']],
+    [800, 840, ['A', 'Swing low 1']],
+  ]);
+});
+
+test('no extra levels: zones are exactly the base ones', () => {
+  const base = [D('A', 800), W('B', 900), D('C', 1100), D('D', 1300)];
+  assert.deepEqual(buildZones(base, 1000, 100, []), buildZones(base, 1000, 100));
+  assert.deepEqual(buildZones(base, 1000, 100, undefined), buildZones(base, 1000, 100));
+});
+
+test('extra levels far from every zone form their own zones and chain only among themselves', () => {
+  const z = buildZones([D('A', 800)], 1000, 100, [D('Swing low 1', 600), D('Swing low 2', 640), D('Swing low 3', 680)]);
+  assert.deepEqual(z.map((x) => [x.lo, x.hi, x.score]), [[800, 800, 1], [600, 680, 3]]);
+});
+
+test('the same turning point from daily and weekly bars counts once, as the weekly one', () => {
+  const z = buildZones([D('R1', 1100)], 1000, 100,
+    [D('Year high', 1250), W('Swing high 10 Sep', 1250), D('Swing high 8 Sep', 1250)]);
+  const top = z.find((x) => x.lo === 1250);
+  assert.deepEqual(top.sources, [{ name: 'Swing high 10 Sep', tf: 'W', value: 1250 }]);
+  assert.equal(top.score, WEEKLY_WEIGHT);
+});
+
+test('an extra level inside a zone joins it without changing its edges', () => {
+  const [z] = buildZones([D('A', 800), D('B', 840)], 1000, 100, [D('Swing low', 820)]);
+  assert.deepEqual([z.lo, z.hi, z.score], [800, 840, 3]);
+});

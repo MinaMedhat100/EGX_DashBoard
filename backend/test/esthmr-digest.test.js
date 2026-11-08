@@ -98,11 +98,11 @@ const MACRO = {
     { id: 'EGY_MAIN', percent: 20.5, date: '2026-11-01' }, { id: 'EGY_ON', percent: 20.3, date: '2026-11-04' },
   ],
   currencies: [{ code: 'EUR', egp: 60 }, { code: 'USD', egp: 50 }],
-  egx30Usd: { level: 1000, changePct: 1.5, ytdPct: 8 },
+  egx30Usd: { level: 1000, changePct: 1.5, ytdPct: 8, session: '2026-11-05' },
   metals: [{ id: 'XAU', usdOunce: 4000 }, { id: 'XAG', usdOunce: 50 }],
   series: [{ id: 'suez', latest: 40 }, { id: 'brent', latest: 90 }],
   moves: [
-    { id: 'EGX30', week: { changePct: 3, largerThanPct: 66, typicalPct: 2 }, month: { changePct: -4, largerThanPct: 44 }, quarter: { changePct: -7, largerThanPct: 56 } },
+    { id: 'EGX30', date: '2026-11-05', week: { changePct: 3, largerThanPct: 66, typicalPct: 2 }, month: { changePct: -4, largerThanPct: 44 }, quarter: { changePct: -7, largerThanPct: 56 } },
     { id: 'EGX70EWI', week: { changePct: 4, largerThanPct: 69 }, month: { changePct: -5, largerThanPct: 50 }, quarter: { changePct: -6, largerThanPct: 40 } },
     { id: 'TAMAYUZ', week: { changePct: 9, largerThanPct: 99 } },
   ],
@@ -113,12 +113,15 @@ test('macro: CBE corridor, pound, EGX30 in USD, Brent, gold, and the three index
   assert.equal(d.as_of, '2026-11-06');
   assert.deepEqual(d.cbe, { deposit: 20, lending: 21, main: 20.5, since: '2026-11-01' });
   assert.equal(d.usd_egp, 50);
-  assert.deepEqual(d.egx30_usd, { level: 1000, change_pct: 1.5, ytd_pct: 8 });
+  assert.deepEqual(d.egx30_usd, { session: '2026-11-05', level: 1000, change_pct: 1.5, ytd_pct: 8 });
   assert.equal(d.brent_usd, 90);
   assert.equal(d.gold_usd_oz, 4000);
   assert.deepEqual(d.moves.map((m) => m.index), ['EGX30', 'EGX70EWI']);
   assert.deepEqual(d.moves[0].week, { pct: 3, larger_than_pct: 66 });
   assert.deepEqual(d.moves[1].quarter, { pct: -6, larger_than_pct: 40 });
+  // A/B run 2: ESTHMR's moves can lag a session, so each carries the session it closes on (null when not given).
+  assert.equal(d.moves[0].as_of, '2026-11-05');
+  assert.equal(d.moves[1].as_of, null);
 });
 
 test('macro: missing sub-fields become null; nothing usable → null', () => {

@@ -403,7 +403,7 @@ export function withZones(indices, extras = null) {
   const swings = extrasOn(extras) ? extras.parts?.history || {} : {};
   return indices.map(({ levels, ...x }) => ({
     ...x,
-    zones: buildZones([...(levels || []), ...(swings[x.index]?.levels || [])], x.level, x.indicators?.atr),
+    zones: buildZones(levels, x.level, x.indicators?.atr, swings[x.index]?.levels),
   }));
 }
 
