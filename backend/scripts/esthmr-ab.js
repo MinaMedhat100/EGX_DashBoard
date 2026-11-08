@@ -70,15 +70,16 @@ const li = (items) => (items.length ? `<ul>${items.map((x) => `<li>${x}</li>`).j
 
 function indexHtml(x) {
   const a = x.ai || {};
+  // Source names are left out on purpose: "Swing high…" would give the ESTHMR read away. They stay in the JSON.
   const zones = (x.zones || []).map((z) => `<tr><td>${esc(z.id)}</td><td>${esc(z.lo)}–${esc(z.hi)}</td><td>${esc(z.role)}</td>`
-    + `<td>${esc(z.score)}</td><td>${esc((z.sources || []).map((s) => `${s.name} ${s.tf}`).join(', '))}</td></tr>`).join('');
+    + `<td>${esc(z.score)}</td></tr>`).join('');
   const sc = (s, name) => (s ? `<b>${name}</b>: ${esc(s.trigger)} ${esc(s.level)} → ${esc(s.target)}${s.off_zone ? ' (off zone)' : ''} — ${esc(s.note)}` : `<b>${name}</b>: —`);
   return `<section><h3>${esc(x.index)} · ${esc(x.level)}</h3>
 <p class="head">${esc(a.headline)}</p>
 <p>${esc(a.regime)} · ${esc(a.trend)} · likely: ${esc(a.likely?.side)} (${esc(a.likely?.confidence)})</p>${li((a.likely?.reasons || []).map(esc))}
 <h4>Trend &amp; momentum</h4>${li((a.trend_momentum || []).map((r) => `<b>${esc(r.label)}</b> ${esc(r.read)} — ${esc(r.detail)}`))}
 <h4>Breadth</h4><p><b>${esc(a.breadth?.read)}</b> ${esc(a.breadth?.detail)}<br>${esc(a.breadth?.note)}</p>
-<h4>Zones</h4><table><tr><th>id</th><th>range</th><th>role</th><th>score</th><th>sources</th></tr>${zones}</table>
+<h4>Zones</h4><table><tr><th>id</th><th>range</th><th>role</th><th>score</th></tr>${zones}</table>
 ${li((a.zones || []).map((z) => `<b>${esc(z.id)}</b> ${esc(z.note)}`))}
 <h4>Scenarios</h4>${li([sc(a.scenarios?.bull, 'Bull'), sc(a.scenarios?.bear, 'Bear')])}
 <h4>For me</h4>${li([`New entries: ${esc(a.for_me?.new_entries)}`, `Open positions: ${esc(a.for_me?.open_positions)}`, `Watch: ${esc(a.for_me?.watch)}`])}

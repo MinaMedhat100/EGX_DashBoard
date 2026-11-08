@@ -55,7 +55,8 @@ test('renderHtml: two reads labelled only A and B, every AI string escaped', () 
   assert.ok(!html.includes('<script>alert(1)</script>'));
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.ok(html.includes('Plain &amp; simple'));
-  assert.ok(html.includes('EMA50 D'));
+  assert.ok(!html.includes('EMA50')); // source names are hidden: "Swing high…" would give the ESTHMR read away
+  assert.ok(html.includes('1100–1110'));
   assert.ok(html.includes('2026-11-05'));
   assert.ok(!/esthmr|today/i.test(html));
 });
