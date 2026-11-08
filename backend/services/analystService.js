@@ -394,9 +394,48 @@ const INDEX_REGIMES = ['Risk-On', 'Neutral', 'Risk-Off'];
 const INDEX_TRENDS = ['Bullish', 'Neutral', 'Bearish'];
 const INDEX_TONES = ['bull', 'bear', 'neutral'];
 
+// v2.11.0: ESTHMR extras ({ parts, status } from esthmrIndices) are an optional helper. Unless status.ok is true,
+// zones and prompt are exactly the v2.10.0 ones (pinned by test/fixtures/indices-prompt-v2.10.0.json).
+const extrasOn = (extras) => extras?.status?.ok === true;
+
 // Zones are built here, before the AI, so the page can show them even when the AI call fails.
-export function withZones(indices) {
-  return indices.map(({ levels, ...x }) => ({ ...x, zones: buildZones(levels, x.level, x.indicators?.atr) }));
+export function withZones(indices, extras = null) {
+  const swings = extrasOn(extras) ? extras.parts?.history || {} : {};
+  return indices.map(({ levels, ...x }) => ({
+    ...x,
+    zones: buildZones([...(levels || []), ...(swings[x.index]?.levels || [])], x.level, x.indicators?.atr),
+  }));
+}
+
+const EXTRAS_BEFORE = 'For EACH index output one object. Respond with ONLY this JSON:';
+const EXTRAS_RULES = [
+  'EXTRAS rules: cite only figures that appear in this block or above; do not compute new flow, breadth or macro numbers.',
+  'Flows (EGP millions of net buying) show who traded, not why. Call outlier sessions likely block deals and partial sessions incomplete; never read a trend from one of them.',
+  "Breadth here is the WHOLE market; each index's own breadth is its stats above. Do not mix the two.",
+  'An event date is a risk window, not a direction.',
+  'Zone sources named "Swing high/low <date>" and "Year high/low" are real turning points from the index\'s own bars; structure lists the latest ones, oldest first.',
+  'Use the extras inside the existing sections (trend_momentum, breadth, zones notes, scenarios, likely, for_me); the JSON shape below does not change.',
+  '',
+];
+const PART_LABELS = { flows: 'investor flows', breadth: 'market breadth', macro: 'rates and macro', events: 'events calendar' };
+const partLabel = (p) => {
+  if (PART_LABELS[p]) return PART_LABELS[p];
+  const [, ix, tf] = p.split(':');
+  return `${ix} ${tf === 'W' ? 'weekly' : 'daily'} swing history`;
+};
+
+function extrasBlock(extras) {
+  const { history = {}, ...digests } = extras.parts || {};
+  const structure = Object.fromEntries(Object.entries(history).filter(([, h]) => h?.structure).map(([ix, h]) => [ix, h.structure]));
+  const body = Object.fromEntries(['flows', 'breadth', 'macro', 'events'].filter((k) => digests[k]).map((k) => [k, digests[k]]));
+  if (Object.keys(structure).length) body.structure = structure;
+  const failed = extras.status.failed || [];
+  return [
+    "=== MARKET EXTRAS (ESTHMR: EGX's own published data) ===",
+    JSON.stringify(body, null, 1),
+    ...(failed.length ? [`Not available this time — absence is not evidence: ${failed.map(partLabel).join(', ')}`] : []),
+    ...EXTRAS_RULES,
+  ];
 }
 
 const zoneForPrompt = (z) => ({
@@ -404,14 +443,14 @@ const zoneForPrompt = (z) => ({
   sources: z.sources.map((s) => `${s.name} ${s.tf}`),
 });
 
-export function indicesPrompt(indices, strategy, news = { items: [], error: null }) {
+export function indicesPrompt(indices, strategy, news = { items: [], error: null }, extras = null) {
   const slim = indices.map((x) => ({
     index: x.index, level: x.level, change_pct: x.change_pct,
     indicators: x.indicators, mtf: x.mtf, stats: x.stats, sectors: x.sectors,
     weekly_ok: x.weekly_ok ?? false,
     zones: (x.zones || []).map(zoneForPrompt),
   }));
-  return [
+  const lines = [
     'Read the REGIME and STRUCTURE of each EGX index below and return STRICT JSON only.',
     '',
     '=== STRATEGY ===', strategy,
@@ -463,7 +502,9 @@ export function indicesPrompt(indices, strategy, news = { items: [], error: null
     'trend_momentum: 3-5 rows. zones: a note for each zone that matters (at least the nearest support and',
     'resistance). Base regime on breadth (advancing vs declining), trend (price vs EMA20/50/200), RSI/ADX/DI',
     'and the weekly/daily bias. All levels in index points. Output JSON only.',
-  ].join('\n');
+  ];
+  if (extrasOn(extras)) lines.splice(lines.indexOf(EXTRAS_BEFORE), 0, ...extrasBlock(extras));
+  return lines.join('\n');
 }
 
 const sOr = (v) => (typeof v === 'string' ? v : '');
@@ -561,26 +602,52 @@ export function mergeIndexAi(indices, ai, newsIds = new Set()) {
   };
 }
 
-export async function analyzeIndices(indices, model = DEFAULT_MODEL, { run = runClaude, strategy, news = { items: [], error: null } } = {}) {
+export async function analyzeIndices(indices, model = DEFAULT_MODEL, { run = runClaude, strategy, news = { items: [], error: null }, extras = null } = {}) {
   const s = strategy ?? await strategyText();
-  const { text, cost_usd } = await run(indicesPrompt(indices, s, news), model,
+  const { text, cost_usd } = await run(indicesPrompt(indices, s, news, extras), model,
     { isolated: true, systemPrompt: INDICES_SYSTEM, envelope: true });
   const newsIds = new Set((news?.items || []).map((i) => i.id));
   return { ...mergeIndexAi(indices, extractJson(text), newsIds), cost_usd };
 }
 
-export async function buildIndicesSnapshot(indices, model, { analyze = analyzeIndices, now = () => new Date(), getNews = indexNews } = {}) {
-  const zoned = withZones(indices);
-  let news;
+export const EXTRAS_WAIT_MS = 13000; // just above esthmrIndices' own 12 s budget
+
+// ESTHMR is a helper: a throw, a hang or an odd answer all mean "no extras", never an error.
+async function settleExtras(getExtras, ms) {
+  let timer;
   try {
-    news = await getNews();
+    const v = await Promise.race([
+      Promise.resolve().then(getExtras),
+      new Promise((r) => { timer = setTimeout(() => r(null), ms); }),
+    ]);
+    return v && v.status && Array.isArray(v.status.failed) ? v : null;
   } catch {
-    news = { items: [], error: 'news lookup failed' }; // best-effort: the read goes ahead without news
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+// getExtras defaults to "off" so tests (and any caller that doesn't opt in) can never reach ESTHMR.
+export async function buildIndicesSnapshot(indices, model, {
+  analyze = analyzeIndices, now = () => new Date(), getNews = indexNews,
+  getExtras = async () => null, extrasTimeoutMs = EXTRAS_WAIT_MS,
+} = {}) {
+  const [news, extras] = await Promise.all([
+    (async () => {
+      try {
+        return await getNews();
+      } catch {
+        return { items: [], error: 'news lookup failed' }; // best-effort: the read goes ahead without news
+      }
+    })(),
+    settleExtras(getExtras, extrasTimeoutMs),
+  ]);
+  const zoned = withZones(indices, extras);
   let merged = { indices: zoned.map((x) => ({ ...x, ai: null })), overall: null, cost_usd: null };
   let ai_error = null;
   try {
-    merged = await analyze(zoned, model, { news });
+    merged = await analyze(zoned, model, { news, ...(extras ? { extras } : {}) });
   } catch (e) {
     ai_error = e.message; // AI unavailable: keep the data and the zones
   }
@@ -592,6 +659,7 @@ export async function buildIndicesSnapshot(indices, model, { analyze = analyzeIn
     ai_error,
     news,
     indices: merged.indices,
+    esthmr: extras ? { ok: extras.status.ok === true, failed: extras.status.failed } : { ok: false, failed: [] },
   };
 }
 
