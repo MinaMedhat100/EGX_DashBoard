@@ -21,10 +21,16 @@ export const PART_NAMES = [
 const fin = (v) => typeof v === 'number' && Number.isFinite(v);
 const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
+const absent = (v) => v === undefined || v === null;
+
+// ESTHMR's own daily record (from 28 Sep 2026) carries only the close: such a bar becomes high = low = close, so
+// recent closing swings still count. A high/low that is present but not a number is a broken bar and is dropped.
 export function cleanBars(points) {
   const byDate = new Map();
-  for (const p of Array.isArray(points) ? points : []) {
-    if (!p || !isDate(p.date) || !fin(p.high) || !fin(p.low) || !fin(p.close)) continue;
+  for (const raw of Array.isArray(points) ? points : []) {
+    if (!raw || !isDate(raw.date) || !fin(raw.close)) continue;
+    const p = absent(raw.high) && absent(raw.low) ? { ...raw, high: raw.close, low: raw.close } : raw;
+    if (!fin(p.high) || !fin(p.low)) continue;
     if (!(p.low > 0) || p.low > p.high) continue; // archive gaps (zeros) and impossible bars
 
     byDate.set(p.date, { date: p.date, open: fin(p.open) ? p.open : p.close, high: p.high, low: p.low, close: p.close });

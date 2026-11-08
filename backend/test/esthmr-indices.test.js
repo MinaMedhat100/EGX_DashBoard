@@ -100,6 +100,35 @@ test('cleanBars sorts, de-duplicates by date (last wins) and drops bad bars (Rev
   assert.deepEqual(cleanBars(undefined), []);
 });
 
+test('cleanBars keeps close-only bars (ESTHMR\'s own daily record since 28 Sep 2026) as high = low = close', () => {
+  const out = cleanBars([
+    { date: '2026-09-27', open: 10, high: 11, low: 9, close: 10 },
+    { date: '2026-09-28', close: 12 },
+    { date: '2026-09-29', open: null, high: null, low: null, close: 13 },
+    { date: '2026-09-30' },
+  ]);
+  assert.deepEqual(out, [
+    { date: '2026-09-27', open: 10, high: 11, low: 9, close: 10 },
+    { date: '2026-09-28', open: 12, high: 12, low: 12, close: 12 },
+    { date: '2026-09-29', open: 13, high: 13, low: 13, close: 13 },
+  ]);
+});
+
+test('recent close-only daily bars still produce swings and structure', async () => {
+  const closeOnlyFrom = 50; // the last 30 of 80 daily bars carry only a close, like the live answer
+  const { call } = fakeCall({
+    index_history: (a) => ({
+      points: a.interval === 'day'
+        ? zigzag(80, '2026-07-01', 1).map((p, i) => (i >= closeOnlyFrom ? { date: p.date, close: p.close } : p))
+        : zigzag(40, '2026-01-01', 7),
+    }),
+  });
+  const { parts, status } = await fetchIndexExtras({ call, now: NOW });
+  assert.deepEqual(status.failed, []);
+  const lastHigh = parts.history.EGX30.structure.highs.at(-1).date;
+  assert.ok(lastHigh >= addDays('2026-07-01', closeOnlyFrom), lastHigh);
+});
+
 test('cleanBars drops impossible bars: low above high, zero or negative prices', () => {
   const out = cleanBars([
     { date: '2026-11-01', open: 10, high: 11, low: 9, close: 10 },
