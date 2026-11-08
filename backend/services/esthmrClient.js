@@ -3,7 +3,7 @@
 // No auth file (backend/data/esthmr_auth.json, written by `npm run esthmr:login`) means ESTHMR is off.
 // Tokens never appear in logs or error messages.
 import { readFileSync } from 'node:fs';
-import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, rename, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -67,12 +67,18 @@ export function createClient({
   authFile = AUTH_FILE, fetchImpl = (u, i) => fetch(u, i), now = Date.now, log = console.warn, callTimeoutMs = CALL_TIMEOUT_MS,
 } = {}) {
   let auth = null;
+  let loadedMtime = null; // the auth file's mtime when `auth` was read or written
   let refreshing = null;
   let session = null;
   let warned = false;
   let nextId = 1;
   let inFlight = 0;
   const waiting = [];
+
+  const fileMtime = async () => {
+    try { return (await stat(authFile)).mtimeMs; } catch { return null; }
+  };
+  const turnOff = (message) => { auth = null; session = null; return new EsthmrOff(message); };
 
   const acquire = () => (inFlight < MAX_IN_FLIGHT ? (inFlight++, Promise.resolve()) : new Promise((r) => waiting.push(r)));
   const release = () => { const next = waiting.shift(); if (next) next(); else inFlight--; };
@@ -97,31 +103,49 @@ export function createClient({
       if (!warned) { warned = true; log(EXPIRED); }
       throw new EsthmrOff(EXPIRED);
     }
+    warned = false;
+    // The file is the user's switch: never write back a deleted file, never overwrite a newer sign-in.
+    const m = await fileMtime();
+    if (m == null) throw turnOff('ESTHMR was turned off');
+    if (m !== loadedMtime) {
+      auth = await loadAuth(authFile);
+      loadedMtime = m;
+      if (!auth) throw turnOff('ESTHMR is not signed in');
+      return;
+    }
     auth = {
       ...a,
       access_token: tok.access_token,
       refresh_token: typeof tok.refresh_token === 'string' ? tok.refresh_token : a.refresh_token,
       expires_at: now() + (Number(tok.expires_in) || 3600) * 1000,
     };
-    warned = false;
     await saveAuth(auth, authFile);
+    loadedMtime = await fileMtime();
   }
 
   // One refresh at a time: refresh tokens rotate, so two parallel refreshes would cancel each other.
   function refresh(usedToken) {
-    if (auth && auth.access_token !== usedToken) return Promise.resolve(); // another call already refreshed
+    if (!auth) return Promise.reject(new EsthmrOff('ESTHMR is not signed in'));
+    if (auth.access_token !== usedToken) return Promise.resolve(); // another call already refreshed
     if (!refreshing) refreshing = doRefresh().finally(() => { refreshing = null; });
     return refreshing;
   }
 
+  // Re-checks the auth file on every call: deleting it turns ESTHMR off at once; a new sign-in is picked up.
   async function current() {
-    if (!auth) auth = await loadAuth(authFile);
-    if (!auth) throw new EsthmrOff('ESTHMR is not signed in');
+    const m = await fileMtime();
+    if (m == null) throw turnOff('ESTHMR is not signed in');
+    if (!auth || m !== loadedMtime) {
+      auth = await loadAuth(authFile);
+      loadedMtime = m;
+      if (!auth) throw turnOff('ESTHMR is not signed in');
+    }
     if (now() > auth.expires_at - REFRESH_EARLY_MS) await refresh(auth.access_token);
+    if (!auth) throw new EsthmrOff('ESTHMR is not signed in');
     return auth;
   }
 
-  async function send(msg, sid) {
+  async function send(msg, sid, signal) {
     for (let attempt = 0; ; attempt++) {
       const a = await current();
       const res = await fetchImpl(ESTHMR_URL, {
@@ -135,7 +159,7 @@ export function createClient({
           ...(sid ? { 'Mcp-Session-Id': sid } : {}),
         },
         body: JSON.stringify(msg),
-        signal: AbortSignal.timeout(callTimeoutMs),
+        signal: signal ? AbortSignal.any([AbortSignal.timeout(callTimeoutMs), signal]) : AbortSignal.timeout(callTimeoutMs),
       });
       if (res.status === 401 && attempt === 0) { await refresh(a.access_token); continue; }
       if (!res.ok) throw new HttpError(res.status);
@@ -160,13 +184,19 @@ export function createClient({
     return session;
   }
 
-  async function callTool(name, args = {}) {
+  // `signal` (optional) stops the call: a queued call never starts and an in-flight one is aborted, so a caller
+  // past its time budget doesn't spend the shared daily allowance on answers nobody will read.
+  async function callTool(name, args = {}, { signal } = {}) {
+    const stopped = () => new Error(`ESTHMR ${name}: stopped, past the time budget`);
+    if (signal?.aborted) throw stopped();
     await acquire();
     try {
       for (let attempt = 0; ; attempt++) {
+        if (signal?.aborted) throw stopped();
         const sid = await ensureSession();
+        if (signal?.aborted) throw stopped();
         try {
-          const { msg } = await send({ jsonrpc: '2.0', id: nextId++, method: 'tools/call', params: { name, arguments: args } }, sid);
+          const { msg } = await send({ jsonrpc: '2.0', id: nextId++, method: 'tools/call', params: { name, arguments: args } }, sid, signal);
           return unwrap(name, msg);
         } catch (e) {
           if (e instanceof HttpError && e.status === 404 && sid && attempt === 0) { session = null; continue; } // session expired
@@ -182,4 +212,4 @@ export function createClient({
 }
 
 let defaultClient = null;
-export const callTool = (name, args) => (defaultClient ??= createClient()).callTool(name, args);
+export const callTool = (name, args, opts) => (defaultClient ??= createClient()).callTool(name, args, opts);

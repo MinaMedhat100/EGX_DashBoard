@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, readdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, readdir, unlink, utimes } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -202,6 +202,82 @@ test('loadAuth / saveAuth round trip; a missing or broken file loads as null', a
   await writeFile(file, '{not json');
   assert.equal(await loadAuth(file), null);
   assert.equal(await loadAuth(path.join(os.tmpdir(), 'nope-esthmr.json')), null);
+});
+
+// ── final-review fixes ────────────────────────────────────────────────────────────────────────────────────────
+test('kill switch: deleting the auth file turns ESTHMR off on the next call', async () => {
+  const f = fake();
+  const file = await authFile();
+  const c = createClient({ authFile: file, fetchImpl: f.fetchImpl, now: () => NOW, log: () => {} });
+  await c.callTool('x', {});
+  const before = f.reqs.length;
+  await unlink(file);
+  await rejects(c.callTool('y', {}), EsthmrOff);
+  assert.equal(f.reqs.length, before);
+});
+
+test('a refresh never writes back an auth file that was deleted meanwhile', async () => {
+  let file;
+  const f = fake({ onToken: async () => { await unlink(file); return json({ access_token: 'tok-B', refresh_token: 'ref-B', expires_in: 3600 }); } });
+  file = await authFile({ expires_at: NOW - 1000 });
+  const c = createClient({ authFile: file, fetchImpl: f.fetchImpl, now: () => NOW, log: () => {} });
+  await rejects(c.callTool('x', {}), EsthmrOff);
+  assert.equal(await loadAuth(file), null);
+  assert.equal(f.calls().length, 0);
+});
+
+const rewrite = async (file, tok) => {
+  await writeFile(file, JSON.stringify({ client_id: 'cid2', access_token: tok, refresh_token: 'ref-N', expires_at: NOW + 3600_000 }));
+  const later = new Date(Date.now() + 60_000);
+  await utimes(file, later, later); // a new sign-in always looks newer, even on a coarse clock
+};
+
+test('a new sign-in while the server runs is picked up on the next call', async () => {
+  const f = fake();
+  const file = await authFile();
+  const c = createClient({ authFile: file, fetchImpl: f.fetchImpl, now: () => NOW, log: () => {} });
+  await c.callTool('x', {});
+  await rewrite(file, 'tok-N');
+  await c.callTool('y', {});
+  assert.equal(f.calls().at(-1).headers.Authorization, 'Bearer tok-N');
+});
+
+test('a refresh does not overwrite a new sign-in made meanwhile', async () => {
+  let file;
+  const f = fake({ onToken: async () => { await rewrite(file, 'tok-N'); return json({ access_token: 'tok-B', refresh_token: 'ref-B', expires_in: 3600 }); } });
+  file = await authFile({ expires_at: NOW - 1000 });
+  const c = createClient({ authFile: file, fetchImpl: f.fetchImpl, now: () => NOW, log: () => {} });
+  await c.callTool('x', {});
+  assert.equal(f.calls()[0].headers.Authorization, 'Bearer tok-N');
+  assert.equal((await loadAuth(file)).access_token, 'tok-N');
+});
+
+test('a call whose signal is already aborted is skipped without a request', async () => {
+  const f = fake();
+  const { c } = await client(f);
+  const ctl = new AbortController();
+  ctl.abort();
+  await rejects(c.callTool('x', {}, { signal: ctl.signal }));
+  assert.equal(f.reqs.length, 0);
+});
+
+test('aborting the signal stops queued and in-flight calls', async () => {
+  let open;
+  const gate = new Promise((r) => { open = r; });
+  const f = fake({
+    onCall: (msg, init) => new Promise((res, rej) => {
+      init.signal.addEventListener('abort', () => rej(init.signal.reason));
+      gate.then(() => res(ok(msg.id, {})));
+    }),
+  });
+  const { c } = await client(f);
+  const ctl = new AbortController();
+  const all = Array.from({ length: 6 }, (_, i) => c.callTool(`t${i}`, {}, { signal: ctl.signal }).then(() => 'ok', () => 'stopped'));
+  await new Promise((r) => setTimeout(r, 30));
+  ctl.abort();
+  open();
+  assert.deepEqual(await Promise.all(all), Array(6).fill('stopped'));
+  assert.equal(f.calls().length, 4); // the 2 queued calls never reached ESTHMR
 });
 
 test('no token ever appears in a log line or error message', () => {

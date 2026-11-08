@@ -8,6 +8,12 @@ export const EVENTS_WINDOW_DAYS = 14;
 export const EVENTS_MAX = 12;
 export const FLOW_SESSIONS_SHOWN = 5;
 
+// Spec §4.5: ex-dividend, splits (and bonus shares, a split in all but name), rights, general meetings.
+// Dividend *payment* days are left out: the price already moved on the ex-date.
+export const EVENT_KINDS = /^(ex_dividend|assembly_egm|assembly_agm)$|split|rights|bonus/;
+const TEXT_MAX = 60;
+const TICKER_MAX = 12;
+
 const GROUPS = ['eg', 'ar', 'fo'];
 const MOVE_IDS = ['EGX30', 'EGX70EWI', 'EGX100EWI'];
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -18,6 +24,8 @@ const r1 = (v) => Math.round(v * 10) / 10 || 0; // `|| 0` turns -0 into 0
 const toM = (v) => (v == null ? null : r1(v / 1e6));
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
 const list = (v) => (Array.isArray(v) ? v : []);
+// Text from an outside server: strings only, control characters flattened, length capped.
+const txt = (v, max = TEXT_MAX) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, max) || null : null);
 
 const CAIRO = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' });
 export const cairoDate = (d) => CAIRO.format(d);
@@ -71,15 +79,15 @@ export function flowsDigest(sc) {
 }
 
 const mover = (m) => ({
-  ticker: m.ticker, change: fin(m.change), vol_x: fin(m.volumeVsUsual), filed: list(m.filings).length > 0,
+  ticker: txt(m.ticker, TICKER_MAX), change: fin(m.change), vol_x: fin(m.volumeVsUsual), filed: list(m.filings).length > 0,
 });
 
 export function breadthDigest(sc) {
   const b = obj(obj(sc)?.breadth);
   if (!b || fin(b.up) == null || fin(b.down) == null) return null;
   const sectors = list(sc.sectors)
-    .filter((s) => obj(s) && typeof s.name === 'string' && fin(s.median) != null)
-    .map((s) => ({ name: s.name, median: s.median, companies: fin(s.companies) }));
+    .filter((s) => obj(s) && txt(s.name) && fin(s.median) != null)
+    .map((s) => ({ name: txt(s.name), median: s.median, companies: fin(s.companies) }));
   const movers = (xs) => list(xs).filter((m) => obj(m) && typeof m.ticker === 'string').slice(0, 5).map(mover);
   return {
     session: isDate(sc.session) ? sc.session : null,
@@ -130,8 +138,9 @@ export function eventsDigest(sc, now) {
     window_days: EVENTS_WINDOW_DAYS,
     events: list(sc.events)
       .filter((e) => obj(e) && isDate(e.date) && e.date >= today && e.date <= end)
+      .filter((e) => typeof e.kind === 'string' && EVENT_KINDS.test(e.kind))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
       .slice(0, EVENTS_MAX)
-      .map((e) => ({ date: e.date, ticker: e.ticker ?? null, kind: e.kind ?? null, label: e.label ?? null })),
+      .map((e) => ({ date: e.date, ticker: txt(e.ticker, TICKER_MAX), kind: txt(e.kind), label: txt(e.label) })),
   };
 }

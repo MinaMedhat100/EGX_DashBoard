@@ -93,11 +93,22 @@ test('too few clean bars fails that series', async () => {
 });
 
 test('cleanBars sorts, de-duplicates by date (last wins) and drops bad bars (Review Focus 2)', () => {
-  const b = (date, c) => ({ date, open: c, high: c + 1, low: c - 1, close: c });
+  const b = (date, c) => ({ date, open: c, high: c + 1, low: c - 0.5, close: c });
   const out = cleanBars([b('2026-11-03', 3), b('2026-11-01', 1), b('2026-11-02', 2), b('2026-11-02', 22),
     { date: '2026-11-04', open: 4, high: 'x', low: 3, close: 4 }, { date: 'soon', open: 1, high: 2, low: 0, close: 1 }, null]);
   assert.deepEqual(out.map((x) => [x.date, x.close]), [['2026-11-01', 1], ['2026-11-02', 22], ['2026-11-03', 3]]);
   assert.deepEqual(cleanBars(undefined), []);
+});
+
+test('cleanBars drops impossible bars: low above high, zero or negative prices', () => {
+  const out = cleanBars([
+    { date: '2026-11-01', open: 10, high: 11, low: 9, close: 10 },
+    { date: '2026-11-02', open: 10, high: 9, low: 11, close: 10 },
+    { date: '2026-11-03', open: 0, high: 0, low: 0, close: 0 },
+    { date: '2026-11-04', open: 10, high: 11, low: 0, close: 10 },
+    { date: '2026-11-05', open: 10, high: 11, low: -1, close: 10 },
+  ]);
+  assert.deepEqual(out.map((b) => b.date), ['2026-11-01']);
 });
 
 test('ESTHMR off: every part fails, ok is false, parts are empty', async () => {
@@ -114,6 +125,25 @@ test('a part still running at the budget counts as failed', async () => {
   assert.ok(Date.now() - t0 < 500);
   assert.deepEqual(status.failed, ['flows']);
   assert.ok(parts.breadth);
+});
+
+test('every call gets a stop signal that fires at the budget, so late calls never start', async () => {
+  const signals = [];
+  const call = (name, args, opts) => {
+    signals.push(opts?.signal);
+    return name === 'investor_flows' ? new Promise(() => {}) : ANSWERS[name](args);
+  };
+  const { status } = await fetchIndexExtras({ call, now: NOW, budgetMs: 50 });
+  assert.deepEqual(status.failed, ['flows']);
+  assert.equal(signals.length, 10);
+  assert.ok(signals.every((s) => s instanceof AbortSignal && s.aborted));
+});
+
+test('the stop signal also fires when everything finished in time', async () => {
+  let signal;
+  const { call } = fakeCall();
+  await fetchIndexExtras({ call: (n, a, o) => { signal = o?.signal; return call(n, a); }, now: NOW });
+  assert.equal(signal?.aborted, true);
 });
 
 test('never rejects, even when call throws synchronously', async () => {

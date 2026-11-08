@@ -25,18 +25,24 @@ export function cleanBars(points) {
   const byDate = new Map();
   for (const p of Array.isArray(points) ? points : []) {
     if (!p || !isDate(p.date) || !fin(p.high) || !fin(p.low) || !fin(p.close)) continue;
+    if (!(p.low > 0) || p.low > p.high) continue; // archive gaps (zeros) and impossible bars
+
     byDate.set(p.date, { date: p.date, open: fin(p.open) ? p.open : p.close, high: p.high, low: p.low, close: p.close });
   }
   return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
-export async function fetchIndexExtras({ call = callTool, now = () => new Date(), budgetMs = EXTRAS_BUDGET_MS } = {}) {
+export async function fetchIndexExtras({ call: rawCall = callTool, now = () => new Date(), budgetMs = EXTRAS_BUDGET_MS } = {}) {
   let timer;
+  // Fires at the budget and again on return: queued calls never start and running ones stop, so nothing
+  // spends the shared daily allowance once this Refresh has stopped listening.
+  const stop = new AbortController();
+  const call = (name, args) => rawCall(name, args, { signal: stop.signal });
   try {
     const t = now();
     const from = (days) => cairoDate(new Date(t.getTime() - days * DAY_MS));
     const OVER = Symbol('over budget');
-    const budget = new Promise((r) => { timer = setTimeout(() => r(OVER), budgetMs); });
+    const budget = new Promise((r) => { timer = setTimeout(() => { stop.abort(); r(OVER); }, budgetMs); });
     // null = this part failed (threw, odd data, or still running at the budget)
     const run = async (work) => {
       try {
@@ -88,5 +94,6 @@ export async function fetchIndexExtras({ call = callTool, now = () => new Date()
     return { parts: {}, status: { ok: false, failed: [...PART_NAMES] } };
   } finally {
     clearTimeout(timer);
+    stop.abort();
   }
 }
