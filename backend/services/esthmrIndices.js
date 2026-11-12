@@ -73,7 +73,7 @@ export async function fetchIndexExtras({ call: rawCall = callTool, now = () => n
       })),
       run(async () => flowsDigest(await call('investor_flows', { days: 20, ...EN }))),
       run(async () => breadthDigest(await call('what_moved', { count: 5, ...EN }))),
-      run(async () => macroDigest(await call('rates_and_macro', { ...EN }))),
+      run(async () => macroDigest(await call('rates_and_macro', { ...EN }), t)),
       run(async () => eventsDigest(await call('upcoming_events', { ...EN }), t)),
     ]);
 

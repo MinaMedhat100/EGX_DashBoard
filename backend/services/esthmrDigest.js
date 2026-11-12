@@ -101,8 +101,11 @@ export function breadthDigest(sc) {
 
 const move = (p) => (obj(p) ? { pct: fin(p.changePct), larger_than_pct: fin(p.largerThanPct) } : null);
 
-export function macroDigest(sc) {
+export function macroDigest(sc, now = new Date()) {
   if (!obj(sc)) return null;
+  // A session date after today in Cairo can't be right (ESTHMR said asOf 2026-11-12 on 10 Nov): drop it.
+  const today = cairoDate(now);
+  const pastDate = (v) => (isDate(v) && v <= today ? v : null);
   const rate = (id) => list(sc.egypt).find((r) => r?.id === id);
   const [dep, lend, main] = ['EGY_DEPOSIT', 'EGY_LENDING', 'EGY_MAIN'].map(rate);
   const cbe = dep || lend || main
@@ -112,14 +115,14 @@ export function macroDigest(sc) {
   const moves = list(sc.moves)
     .filter((m) => obj(m) && MOVE_IDS.includes(m.id))
     // as_of: the session the moves close on; ESTHMR can lag the live session, so the date travels with them
-    .map((m) => ({ index: m.id, as_of: isDate(m.date) ? m.date : null, week: move(m.week), month: move(m.month), quarter: move(m.quarter) }));
+    .map((m) => ({ index: m.id, as_of: pastDate(m.date), week: move(m.week), month: move(m.month), quarter: move(m.quarter) }));
   if (!cbe && usd == null && !moves.length) return null;
   const e = obj(sc.egx30Usd);
   return {
-    as_of: isDate(sc.asOf) ? sc.asOf : null,
+    as_of: pastDate(sc.asOf),
     cbe,
     usd_egp: usd,
-    egx30_usd: e ? { session: isDate(e.session) ? e.session : null, level: fin(e.level), change_pct: fin(e.changePct), ytd_pct: fin(e.ytdPct) } : null,
+    egx30_usd: e ? { session: pastDate(e.session), level: fin(e.level), change_pct: fin(e.changePct), ytd_pct: fin(e.ytdPct) } : null,
     brent_usd: fin(list(sc.series).find((s) => s?.id === 'brent')?.latest),
     gold_usd_oz: fin(list(sc.metals).find((m) => m?.id === 'XAU')?.usdOunce),
     moves,

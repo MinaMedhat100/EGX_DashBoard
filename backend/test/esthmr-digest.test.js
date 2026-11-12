@@ -134,6 +134,17 @@ test('macro: missing sub-fields become null; nothing usable → null', () => {
   assert.equal(macroDigest(null), null);
 });
 
+test('macro: a date after today in Cairo is dropped (A/B run 3: asOf 2026-11-12 on 10 Nov)', () => {
+  const now = new Date('2026-11-10T10:00:00Z');
+  const future = { ...MACRO, asOf: '2026-11-12', egx30Usd: { ...MACRO.egx30Usd, session: '2026-11-11' },
+    moves: [{ ...MACRO.moves[0], date: '2026-11-11' }, { ...MACRO.moves[1], date: '2026-11-10' }] };
+  const d = macroDigest(future, now);
+  assert.equal(d.as_of, null);
+  assert.equal(d.egx30_usd.session, null);
+  assert.deepEqual(d.moves.map((m) => m.as_of), [null, '2026-11-10']);
+  assert.equal(macroDigest(MACRO, now).as_of, '2026-11-06');
+});
+
 test('cairoDate uses the Cairo calendar day', () => {
   assert.equal(cairoDate(new Date('2026-11-08T23:30:00Z')), '2026-11-09');
   assert.equal(cairoDate(new Date('2026-11-08T10:00:00Z')), '2026-11-08');
