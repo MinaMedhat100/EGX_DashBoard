@@ -395,7 +395,7 @@ const INDEX_TRENDS = ['Bullish', 'Neutral', 'Bearish'];
 const INDEX_TONES = ['bull', 'bear', 'neutral'];
 
 // v2.11.0: ESTHMR extras ({ parts, status } from esthmrIndices) are an optional helper. Unless status.ok is true,
-// zones and prompt are exactly the v2.10.0 ones (pinned by test/fixtures/indices-prompt-v2.10.0.json).
+// zones and prompt are exactly the ESTHMR-off ones (pinned by test/fixtures/indices-prompt-esthmr-off.json).
 const extrasOn = (extras) => extras?.status?.ok === true;
 
 // Zones are built here, before the AI, so the page can show them even when the AI call fails.
@@ -500,6 +500,8 @@ export function indicesPrompt(indices, strategy, news = { items: [], error: null
     '}],',
     '"overall": { "regime": "Risk-On|Neutral|Risk-Off", "summary": "one line on overall EGX posture" }}',
     '',
+    // The example shows one object; without this line the AI once returned EGX30 only (v2.11.0 A/B run 3).
+    `"indices" must hold exactly ${slim.length} ${slim.length === 1 ? 'object' : 'objects'}, one per index, in this order: ${slim.map((x) => x.index).join(', ')}. The example shows only the first.`,
     'trend_momentum: 3-5 rows. zones: a note for each zone that matters (at least the nearest support and',
     'resistance). Base regime on breadth (advancing vs declining), trend (price vs EMA20/50/200), RSI/ADX/DI',
     'and the weekly/daily bias. All levels in index points. Output JSON only.',
@@ -603,12 +605,18 @@ export function mergeIndexAi(indices, ai, newsIds = new Set()) {
   };
 }
 
-export async function analyzeIndices(indices, model = DEFAULT_MODEL, { run = runClaude, strategy, news = { items: [], error: null }, extras = null } = {}) {
+export async function analyzeIndices(indices, model = DEFAULT_MODEL, { run = runClaude, strategy, news = { items: [], error: null }, extras = null, log = console.warn } = {}) {
   const s = strategy ?? await strategyText();
   const { text, cost_usd } = await run(indicesPrompt(indices, s, news, extras), model,
     { isolated: true, systemPrompt: INDICES_SYSTEM, envelope: true });
   const newsIds = new Set((news?.items || []).map((i) => i.id));
-  return { ...mergeIndexAi(indices, extractJson(text), newsIds), cost_usd };
+  const merged = mergeIndexAi(indices, extractJson(text), newsIds);
+  const skipped = merged.indices.filter((x) => !x.ai).map((x) => x.index);
+  if (skipped.length) {
+    const got = merged.indices.filter((x) => x.ai).map((x) => x.index);
+    log(`Indices AI read skipped ${skipped.join(', ')} (returned ${got.join(', ') || 'none'})`);
+  }
+  return { ...merged, cost_usd };
 }
 
 export const EXTRAS_WAIT_MS = 13000; // just above esthmrIndices' own 12 s budget

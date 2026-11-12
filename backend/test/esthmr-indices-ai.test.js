@@ -5,7 +5,7 @@ import { indicesPrompt, withZones, analyzeIndices, buildIndicesSnapshot } from '
 import { PART_NAMES } from '../services/esthmrIndices.js';
 import { FIXTURE_INDICES, FIXTURE_STRATEGY, FIXTURE_NEWS } from './fixtures/indices-prompt-input.js';
 
-const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/indices-prompt-v2.10.0.json', import.meta.url), 'utf-8'));
+const FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/indices-prompt-esthmr-off.json', import.meta.url), 'utf-8'));
 const INSERT_AT = 'For EACH index output one object.';
 const RULES = [
   'EXTRAS rules: cite only figures that appear in this block or above; do not compute new flow, breadth or macro numbers.',
@@ -34,13 +34,13 @@ const EXTRAS = {
   parts: { ...PARTS, history: { EGX30: { levels: [{ name: 'Swing high 6 Sep', tf: 'W', value: 1210 }], structure: STRUCT } } },
   status: { ok: true, failed: [] },
 };
-// History only for an index the fixture doesn't have: the zone JSON stays as in v2.10.0.
+// History only for an index the fixture doesn't have: the zone JSON stays as with ESTHMR off.
 const EXTRAS_NO_FIXTURE_HISTORY = {
   parts: { ...PARTS, history: { EGX100: { levels: [{ name: 'Swing low 1 Oct', tf: 'D', value: 10 }], structure: STRUCT } } },
   status: { ok: true, failed: [] },
 };
 
-test('ESTHMR off: prompt and zones are byte-identical to v2.10.0', () => {
+test('ESTHMR off: prompt and zones are byte-identical to the pinned ESTHMR-off prompt', () => {
   for (const x of [undefined, null, { parts: {}, status: { ok: false, failed: PART_NAMES } }, { parts: EXTRAS.parts, status: { ok: false, failed: [] } }]) {
     assert.equal(indicesPrompt(withZones(FIXTURE_INDICES, x), FIXTURE_STRATEGY, FIXTURE_NEWS, x), FIXTURE.prompt);
     assert.deepEqual(withZones(FIXTURE_INDICES, x), withZones(FIXTURE_INDICES));

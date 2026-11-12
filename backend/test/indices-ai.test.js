@@ -94,6 +94,27 @@ test('mergeIndexAi validates per index and carries overall', () => {
   assert.equal(empty.overall, null);
 });
 
+// v2.11.0 A/B run 3: the schema example shows one object (EGX30) and the AI returned only that one.
+test('indicesPrompt asks for exactly one object per index, by name and in order', () => {
+  const three = withZones([IDX, { ...IDX, index: 'EGX70' }, { ...IDX, index: 'EGX100' }]);
+  assert.ok(indicesPrompt(three, '').includes(
+    '"indices" must hold exactly 3 objects, one per index, in this order: EGX30, EGX70, EGX100. The example shows only the first.'));
+  assert.ok(indicesPrompt(withZones([IDX]), '').includes(
+    '"indices" must hold exactly 1 object, one per index, in this order: EGX30. The example shows only the first.'));
+});
+
+test('analyzeIndices logs the indices the AI skipped, and nothing when it covers all', async () => {
+  const logged = [];
+  const log = (m) => logged.push(m);
+  const run = async () => ({ text: JSON.stringify({ indices: [{ index: 'EGX30' }], overall: null }), cost_usd: 0.1 });
+  const three = withZones([IDX, { ...IDX, index: 'EGX70' }, { ...IDX, index: 'EGX100' }]);
+  const out = await analyzeIndices(three, 'm', { run, strategy: '', log });
+  assert.deepEqual(logged, ['Indices AI read skipped EGX70, EGX100 (returned EGX30)']);
+  assert.equal(out.indices[1].ai, null);
+  await analyzeIndices(withZones([IDX]), 'm', { run, strategy: '', log });
+  assert.equal(logged.length, 1);
+});
+
 test('analyzeIndices runs one isolated call and returns its cost', async () => {
   let seen;
   const run = async (prompt, model, opts) => {
