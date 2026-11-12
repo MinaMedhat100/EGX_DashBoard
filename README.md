@@ -45,6 +45,9 @@ traded automatically, and the AI never changes a level on its own: it proposes, 
   from a shared pool of recent market and macro headlines), bull/bear scenarios tied to the zones
   with the most likely one marked, and what it means for new entries and open positions.
 - The overall regime read (Risk-On / Neutral / Risk-Off) feeds the other analyses.
+- Optional: signed in to [ESTHMR](https://esthmr.com) (EGX's own published data), the read also
+  gets each index's real swing highs and lows, investor flows by nationality, whole-market breadth,
+  rates and the events calendar. Without it, the page works exactly as before.
 
 **Goldx** — a gold swing tracker (PAXG as the spot-gold proxy, USD/oz, with USD/EGP, DXY and the US
 10-year yield) with its own AI entries and position.
@@ -112,7 +115,8 @@ gitignored:
 - `PORTFOLIO.md` — history for the generator.
 
 Everything the app writes lives in `backend/data/` and is gitignored too: the portfolio, the trade
-journal, scan history, index and gold snapshots, the last refresh, and the Yahoo bars cache.
+journal, scan history, index and gold snapshots, the last refresh, the Yahoo bars cache, and the
+optional ESTHMR sign-in.
 
 ## Setup
 
@@ -123,6 +127,11 @@ npm run setup               # installs python + backend + frontend deps, generat
 
 (Or manually: `pip install -r mcp_bridge/requirements.txt`, `npm --prefix backend install`,
 `npm --prefix frontend install`, `npm run gen`.)
+
+Optional, for the extra Indices data: `npm --prefix backend run esthmr:login` opens the ESTHMR
+sign-in in your browser and saves it to `backend/data/esthmr_auth.json`. Run it again if the
+backend logs that the sign-in expired. Delete the file to turn ESTHMR off; that takes effect on
+the next Refresh, no restart needed.
 
 ## Run (all three services)
 

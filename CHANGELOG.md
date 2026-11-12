@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.11.0
+
+**The Indices read can now use EGX's own published data from ESTHMR, as an optional helper.** Sign
+in once with `npm --prefix backend run esthmr:login`. Each Indices Refresh then makes ten ESTHMR
+calls in parallel with the bridge, within a 12-second budget:
+- a year of daily and three years of weekly bars per index, turned into real **swing highs and
+  lows** (plus the year high/low) and the trend structure (are the lows rising or falling);
+- **investor flows** by nationality, with one-off block-deal sessions marked as outliers;
+- **whole-market breadth** and the day's biggest movers;
+- **rates and macro** (CBE corridor, pound, EGX30 in dollars), each with the session it is from;
+- the **events calendar** for the next two weeks (dividends, shareholder meetings).
+
+Swing levels are added to the zone ladder only after the zones are built, so they join the nearest
+zone or form their own and never merge two zones into one. A turning point seen on both daily and
+weekly bars counts once. ESTHMR's raw answers are digested on arrival and never stored, and its own
+summary text never reaches the AI. Any part that fails is named "not available" to the AI. If
+ESTHMR is down, signed out or slow, the page is exactly the 2.10.0 page: the prompt is byte-identical,
+and a test pins it. Delete `backend/data/esthmr_auth.json` to switch it off without a restart. The
+change was kept after a blind side-by-side comparison over three sessions.
+
 ## 2.10.0
 
 **Each index tab now shows the news behind the move and which scenario is more likely.** On each
