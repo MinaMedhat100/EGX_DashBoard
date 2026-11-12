@@ -16,9 +16,13 @@ Swing levels are added to the zone ladder only after the zones are built, so the
 zone or form their own and never merge two zones into one. A turning point seen on both daily and
 weekly bars counts once. ESTHMR's raw answers are digested on arrival and never stored, and its own
 summary text never reaches the AI. Any part that fails is named "not available" to the AI. If
-ESTHMR is down, signed out or slow, the page is exactly the 2.10.0 page: the prompt is byte-identical,
-and a test pins it. Delete `backend/data/esthmr_auth.json` to switch it off without a restart. The
+ESTHMR is down, signed out or slow, the page is the 2.10.0 page plus one prompt line (below), and a
+test pins that prompt. Delete `backend/data/esthmr_auth.json` to switch it off without a restart. The
 change was kept after a blind side-by-side comparison over three sessions.
+
+**Fix:** the AI once returned a read for EGX30 only, leaving EGX70 and EGX100 empty after a paid call.
+The prompt's example shows a single index, so the prompt now says how many index objects to return,
+which ones and in what order. If a reply still skips an index, the backend logs which ones.
 
 ## 2.10.0
 
